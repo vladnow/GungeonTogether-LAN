@@ -2,13 +2,13 @@
 
 [Русская инструкция](https://github.com/vladnow/GungeonTogether-LAN/blob/main/README.ru.md)
 
-Experimental **two-player co-op for Enter the Gungeon** over a local network or Radmin VPN. Connect through **Host / Join by IPv4**. The host runs the game's native co-op simulation; the client controls the Cultist and renders replicated objects with local game resources. Both players share the host's camera view.
+Experimental **two-player co-op for Enter the Gungeon** over a local network or Radmin VPN. Connect through **Host / Join by IPv4**. The host runs the game's native co-op simulation; the client controls a selected second character and renders replicated objects with local game resources. Both players share the host's camera view.
 
-**Version 0.2.2 is an early alpha.** Full campaigns, every boss/item and additional modpacks have not been validated. Client visuals, sound and some interactions remain incomplete.
+**Version 0.3.0 is an experimental alpha. Known blocker: a fourth-floor layout mismatch can stop the run.** Local early-floor tests passed; full campaigns, all bosses/items and additional modpacks remain unverified. Client visuals, sound and some interactions are incomplete.
 
 ## Requirements
 
-- Two Windows PCs with matching game files and the same mod version. The tested game version is Steam **2.1.9**.
+- Two Windows PCs with matching game files and the same mod version. Built and locally tested against Steam **2.1.9**.
 - **BepInExPack EtG 5.4.2101** / BepInEx 5.
 - A shared LAN or connected Radmin VPN network. Radmin VPN is installed separately.
 - Start with this mod and its loader only. Other mod combinations are unverified.
@@ -21,7 +21,7 @@ Packaged builds are listed under [Releases](https://github.com/vladnow/GungeonTo
 
 1. Create a clean Enter the Gungeon profile in Thunderstore Mod Manager or r2modman.
 2. Install **BepInExPack EtG 5.4.2101** in that profile.
-3. Import the `GungeonTogether_LAN-0.2.2-Thunderstore.zip` release through **Settings → Import local mod**, or install the package from the manager's catalogue when available.
+3. Import the `GungeonTogether_LAN-0.3.0-Thunderstore.zip` release through **Settings → Import local mod**, or install the package from the manager's catalogue when available.
 4. Remove older LAN DLLs and other GungeonTogether plugins from the same profile before updating. Keep backups outside `BepInEx/plugins`.
 5. Launch with **Start Modded**. LAN mode is selected automatically when loaded from a separate manager profile.
 
@@ -41,13 +41,19 @@ The launcher installs into the game folder and does not update manager profiles.
 
 ## Connecting
 
-1. Both players launch the mod, enter the foyer and choose a character.
-2. Press **Ctrl+P** to open the LAN menu.
-3. The host selects **HOST**.
-4. The client enters the host's LAN/Radmin IPv4, uses the same **TCP port** and **Session code**, then selects **JOIN BY IP**.
-5. Once connected, the host selects **START SYNCHRONIZED DUNGEON**. The client loads automatically and controls the Cultist after the dungeon layout check succeeds.
+1. Install the **same 0.3.0 build on both PCs**. Launch the mod, enter the foyer and choose a local character. Close the LAN menu with Esc while moving or choosing a character.
+2. Press **Ctrl+P**. The menu uses English labels.
+3. Host: **HOST → CREATE ROOM**. Listen address `0.0.0.0` accepts connections on all adapters; a specific local Radmin address can also be used.
+4. Client: **JOIN**. Enter the host's LAN/Radmin IPv4 and matching port/room code. Use the arrows under **PLAYER TWO** to select Cultist, Pilot, Marine, Convict or Hunter, then **JOIN BY IP**. The run character is separate from the client's foyer character.
+5. The client can change the selection until the run starts. The host sees the selected hero and selects **START RUN**. The client loads automatically after the layout check.
 
 The default TCP port is **27631**. Allow the game through the firewall on the intended network. Use a trusted LAN or VPN: the mod does not add encryption to its TCP connection.
+
+## Movement changes
+
+Foyer avatars and client dungeon sprites/camera now use sender timestamps and a **120 ms interpolation buffer**. Dungeon snapshots are sent at up to **20 Hz**, previously 10 Hz. Different foyer characters resolve their own sprite collections. Large teleports remain discrete; a stalled connection freezes at its last known frame instead of inventing movement.
+
+Interpolation adds display latency. Client-side prediction is not implemented and native co-op distance limits remain. Long stalls, low FPS, TCP retransmission and host load can still cause visible corrections. Guest abilities, revival, special endings and all item combinations are not validated in this alpha.
 
 ## Controls
 
@@ -69,7 +75,7 @@ Advanced setting: **Profile / SaveProfileMode** in `com.gungeontogether.lan.cfg`
 
 ## Compatibility and known limitations
 
-- Other Steam GungeonTogether variants and older LAN plugins are incompatible in the same installation/profile. Use separate profiles for other networking mods.
+- 0.3.0 cannot connect to 0.2.x peers: update both PCs. Other Steam GungeonTogether variants and older LAN plugins are incompatible in the same installation/profile. Use separate profiles for other networking mods.
 - Client combat audio, some effects/materials, beam geometry, shop/dialogue interfaces and secret-wall tile changes are incomplete.
 - TCP retransmission can delay state updates on poor connections.
 - A disconnected dungeon run is paused. Return to the foyer and start a new session; active-run reconnection and host migration are not implemented.
@@ -78,9 +84,11 @@ Advanced setting: **Profile / SaveProfileMode** in `com.gungeontogether.lan.cfg`
 
 ## Validation
 
-The 0.2.2 runtime passed **69 automated transport, protocol and profile checks** and **two local two-process dungeon smoke runs**. These checked matching first/second-floor layouts, client snapshots, native Cultist movement, firing and damage. Normal/LAN save-path selection was checked with copied save fixtures.
+The exact 0.3.0 DLL passed **108 automated checks**, **15 native method-binding checks** and **five local two-process dungeon tests**, one for each guest character. Tests covered different foyer avatars, remote movement, native firing/damage, matching first/second-floor geometry, retained character selection and client interpolation. Tests were silent and ran in small windows without cursor confinement or foreground input automation. The game saved actual menu screenshots. Six normal save/backup/options files retained their pre-test hashes.
 
-The smoke enemy had AI disabled and the next floor was loaded with a native level command. These results do not establish a complete multiplayer playthrough. See [VALIDATION.md](https://github.com/vladnow/GungeonTogether-LAN/blob/main/publication/VALIDATION.md) for detailed evidence.
+An additional Hunter run matched the third floor, but **the fourth floor reproduced a layout mismatch and stopped the run** from initial seed 299027071. The fifth floor was not reached. Enemy AI in combat tests was disabled; transitions used native diagnostic commands. This does **not** establish clearing every room, full campaigns, all abilities/items, normal boss/elevator transitions or two physical PCs over Radmin. See VALIDATION.md. Fresh launcher installation and actual manager ZIP import remain untested in this series.
+
+Normal packaging requires matching runtime/native evidence. `Build-Thunderstore.ps1 -DevelopmentPreview` remains available for explicitly unvalidated development archives. Packaging does not imply a public upload.
 
 ## Reporting problems
 

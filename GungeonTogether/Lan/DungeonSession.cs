@@ -18,6 +18,10 @@ namespace GungeonTogether.Lan
         private uint inputSequence, snapshotSequence, lastSnapshot;
         private float deadline, nextInput, nextSnapshot;
         private bool loadingCommand;
+        private int hostCharacter = 1;
+        public int GuestCharacter { get; private set; }
+        public bool GuestChoiceReceived { get; private set; }
+        private GameObject clientOriginalPrefab;
         public RunPhase Phase { get; private set; }
         public bool IsHost { get { return transport.IsHost; } }
         public bool Mirroring { get { return !IsHost && Phase == RunPhase.Running; } }
@@ -27,6 +31,8 @@ namespace GungeonTogether.Lan
         public int Seed { get { return seed; } }
         public RemoteControls Controls { get { return controls; } }
         public WorldSnapshot Snapshot { get { return sprites.LastSnapshot; } }
+        public int RenderedFrames { get { return sprites.RenderedFrames; } }
+        public int InterpolatedFrames { get { return sprites.InterpolatedFrames; } }
         public bool MuteClientInput;
         public bool SmokeControls;
         public float SmokeMoveX;
@@ -35,15 +41,28 @@ namespace GungeonTogether.Lan
         public DungeonSession(LanTransport transport, GameObject timeOwner, Action<string> log)
         { this.transport = transport; this.timeOwner = timeOwner; this.log = log; Phase = RunPhase.Lobby; Status = "Connected: host can start synchronized dungeon"; }
 
+        public void ChooseGuest(int character)
+        {
+            if (IsHost || Phase != RunPhase.Lobby || !CharacterCatalog.ValidGuest(character)) return;
+            GuestCharacter = character;
+            Send(new LobbyChoice { Character = character }.Encode());
+        }
+
         public void StartHost()
         {
             if (!IsHost || !transport.Connected || Phase != RunPhase.Lobby) throw new IOException("Connect two PCs in the foyer first.");
             GameManager gm = GameManager.Instance;
             if (!gm.IsFoyer || gm.PrimaryPlayer == null) throw new IOException("Start from the foyer with a selected character.");
+            if (!GuestChoiceReceived) throw new IOException("Wait for the friend's character selection.");
+            hostCharacter = CharacterCatalog.FromIdentity(gm.PrimaryPlayer.characterIdentity.ToString());
             controls = new RemoteControls();
-            NativeWorld.EnsureCultist(); controls.Bind(); controls.Enabled = false;
+            NativeWorld.EnsureGuest(GuestCharacter); controls.Bind(); controls.Enabled = false;
             generationContext = NativeWorld.ExportGenerationContext();
             epoch = 1; seed = UnityEngine.Random.Range(1, 999999999); scene = "tt_castle";
+            if (DungeonPlugin.Instance != null && DungeonPlugin.Instance.IsSmoke) foreach (string arg in Environment.GetCommandLineArgs()) {
+                int value;
+                if (arg.StartsWith("--gt-smoke-seed=", StringComparison.Ordinal) && int.TryParse(arg.Substring("--gt-smoke-seed=".Length), out value) && value > 0) seed = value;
+            }
             SetGenerating(); NativeWorld.DepartFoyer(); gm.InitializeForRunWithSeed(seed); gm.LoadCustomLevel(scene);
         }
 
@@ -83,9 +102,9 @@ namespace GungeonTogether.Lan
                 if (gm.IsLoadingLevel) return;
                 if (gm.IsFoyer) { Fail("The run returned to the foyer; reconnect before starting another run."); return; }
                 if (IsHost) {
-                    NativeWorld.EnsureCultist(); controls.Bind(); controls.Enabled = true;
+                    NativeWorld.EnsureGuest(GuestCharacter); controls.Bind(); controls.Enabled = true;
                     if (Time.realtimeSinceStartup >= nextSnapshot) {
-                        nextSnapshot = Time.realtimeSinceStartup + 0.1f;
+                        nextSnapshot = Time.realtimeSinceStartup + 0.05f;
                         WorldSnapshot snapshot = sprites.Capture(epoch, ++snapshotSequence, Send);
                         Send(snapshot.Encode());
                     }
@@ -97,6 +116,13 @@ namespace GungeonTogether.Lan
                     }
                 }
             } catch (Exception ex) { Fail(ex.Message); }
+        }
+
+        public void LateUpdate()
+        {
+            if (!Mirroring || GameManager.Instance.IsLoadingLevel) return;
+            try { sprites.Render(Time.realtimeSinceStartup); }
+            catch (Exception ex) { Fail(ex.Message); }
         }
 
         private RemoteInput CaptureInput()
@@ -134,7 +160,7 @@ namespace GungeonTogether.Lan
                 hash = localHash; controls.Bind(); controls.Enabled = false;
                 BraveTime.SetTimeScaleMultiplier(0f, timeOwner);
                 Phase = RunPhase.AwaitingClient; deadline = Time.realtimeSinceStartup + 120;
-                Send(new LevelCommand { Epoch = epoch, Seed = seed, Scene = scene, LayoutHash = hash, GenerationData = generationContext }.Encode());
+                Send(new LevelCommand { Epoch = epoch, Seed = seed, Scene = scene, LayoutHash = hash, GenerationData = generationContext, HostCharacter = hostCharacter, GuestCharacter = GuestCharacter }.Encode());
                 Status = "Host dungeon generated; waiting for identical client layout";
             } else {
                 if (localHash != hash) throw new IOException("Dungeon layouts differ. Run stopped; use identical clean LAN profiles and game files.");
@@ -143,7 +169,7 @@ namespace GungeonTogether.Lan
                 Phase = RunPhase.Running;
                 sprites.SuppressLocalSimulation();
                 Send(Wire.Write(DungeonMessage.Ready, delegate(BinaryWriter w) { w.Write(epoch); w.Write(hash); }));
-                Status = "Synchronized dungeon: controlling the Cultist on the host";
+                Status = "Synchronized dungeon: controlling " + CharacterCatalog.Prefab(GuestCharacter);
                 log("GT_DUNGEON_CLIENT_READY epoch=" + epoch);
             }
         }
@@ -157,7 +183,10 @@ namespace GungeonTogether.Lan
                 Fail("Friend stopped: " + reason, false); return;
             }
             if (IsHost) {
-                if (type == DungeonMessage.Input) {
+                if (type == DungeonMessage.Character) {
+                    LobbyChoice choice = LobbyChoice.Decode(bytes);
+                    if (Phase == RunPhase.Lobby) { GuestCharacter = choice.Character; GuestChoiceReceived = true; log("GT_GUEST_CHARACTER " + CharacterCatalog.Prefab(GuestCharacter)); }
+                } else if (type == DungeonMessage.Input) {
                     RemoteInput input = RemoteInput.Decode(bytes);
                     if (input.Epoch == epoch && Phase == RunPhase.Running) controls.Apply(input);
                 } else if (type == DungeonMessage.Ready) {
@@ -175,7 +204,7 @@ namespace GungeonTogether.Lan
                 else if (type == DungeonMessage.Collection) { CollectionInfo info = CollectionInfo.Decode(bytes); if (info.Epoch == epoch) sprites.Define(info); }
                 else if (type == DungeonMessage.Snapshot) {
                     WorldSnapshot snapshot = WorldSnapshot.Decode(bytes);
-                    if (snapshot.Epoch == epoch && Phase == RunPhase.Running && Wire.Newer(snapshot.Sequence, lastSnapshot)) { sprites.Apply(snapshot); lastSnapshot = snapshot.Sequence; }
+                    if (snapshot.Epoch == epoch && Phase == RunPhase.Running && Wire.Newer(snapshot.Sequence, lastSnapshot)) { sprites.Enqueue(snapshot); lastSnapshot = snapshot.Sequence; }
                 } else throw new IOException("Host sent an unsupported packet.");
             }
         }
@@ -187,8 +216,10 @@ namespace GungeonTogether.Lan
             sprites.Dispose(); sprites = new SpriteReplication();
             GameManager gm = GameManager.Instance;
             if (clientOriginalContext == null) clientOriginalContext = NativeWorld.ExportGenerationContext();
+            if (epoch == 1) clientOriginalPrefab = GameManager.LastUsedPlayerPrefab;
             if (!string.IsNullOrEmpty(command.GenerationData)) NativeWorld.ImportGenerationContext(command.GenerationData);
-            NativeWorld.EnsureCultist();
+            hostCharacter = command.HostCharacter; GuestCharacter = command.GuestCharacter;
+            NativeWorld.PrepareClientPlayers(hostCharacter, GuestCharacter);
             NativeWorld.DepartFoyer();
             // Client controllers are asset/lighting placeholders, not authoritative inventory.
             // Recreate them for a new floor instead of carrying old physics-tree proxies.
@@ -222,6 +253,7 @@ namespace GungeonTogether.Lan
             if (controls != null) { controls.Dispose(); controls = null; }
             sprites.Dispose();
             if (!IsHost && clientOriginalContext != null) NativeWorld.ImportGenerationContext(clientOriginalContext);
+            if (!IsHost && clientOriginalPrefab != null) GameManager.PlayerPrefabForNewGame = clientOriginalPrefab;
             BraveTime.SetTimeScaleMultiplier(1f, timeOwner);
             if (GameManager.HasInstance) foreach (PlayerController player in GameManager.Instance.AllPlayers) if (player != null) player.ClearInputOverride("GT_LevelSync");
             Phase = RunPhase.Lobby;

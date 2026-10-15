@@ -16,6 +16,13 @@ namespace GungeonTogether.Lan
         private readonly List<Behaviour> disabled = new List<Behaviour>();
         private readonly Dictionary<HealthHaver, bool> protectedHealth = new Dictionary<HealthHaver, bool>();
         private GameUIRoot hud;
+        private readonly SnapshotBuffer<WorldSnapshot> frames = new SnapshotBuffer<WorldSnapshot>(0.12);
+        private readonly Dictionary<int, SpriteState> nextSprites = new Dictionary<int, SpriteState>();
+        private WorldSnapshot indexedFrame;
+        private readonly HashSet<int> present = new HashSet<int>();
+        private readonly List<int> removed = new List<int>();
+        public int RenderedFrames { get; private set; }
+        public int InterpolatedFrames { get; private set; }
         public Vector2 RemotePlayerPosition;
         public WorldSnapshot LastSnapshot;
 
@@ -23,7 +30,7 @@ namespace GungeonTogether.Lan
 
         public WorldSnapshot Capture(int epoch, uint sequence, Action<byte[]> send)
         {
-            WorldSnapshot snapshot = new WorldSnapshot { Epoch = epoch, Sequence = sequence };
+            WorldSnapshot snapshot = new WorldSnapshot { Epoch = epoch, Sequence = sequence, SentAt = Time.realtimeSinceStartup };
             GameManager gm = GameManager.Instance;
             Camera camera = gm.MainCameraController.Camera;
             Vector3 cam = camera.transform.position;
@@ -94,9 +101,27 @@ namespace GungeonTogether.Lan
             throw new IOException("Missing local sprite asset: " + info.Name + ". Session stopped to avoid invisible hazards.");
         }
 
-        public void Apply(WorldSnapshot snapshot)
+        public void Enqueue(WorldSnapshot snapshot)
         {
-            HashSet<int> present = new HashSet<int>();
+            if (frames.Push(snapshot, snapshot.Sequence, snapshot.SentAt, Time.realtimeSinceStartup)) LastSnapshot = snapshot;
+        }
+
+        public void Render(double now)
+        {
+            WorldSnapshot snapshot, next; float blend;
+            if (!frames.Sample(now, out snapshot, out next, out blend)) return;
+            RenderedFrames++;
+            if (snapshot != next && blend > 0 && blend < 1) InterpolatedFrames++;
+            if (indexedFrame != next) {
+                indexedFrame = next; nextSprites.Clear();
+                foreach (SpriteState state in next.Sprites) nextSprites[state.Id] = state;
+            }
+            ApplyFrame(snapshot, next, blend);
+        }
+
+        private void ApplyFrame(WorldSnapshot snapshot, WorldSnapshot next, float blend)
+        {
+            present.Clear();
             foreach (SpriteState state in snapshot.Sprites) {
                 present.Add(state.Id);
                 tk2dSpriteCollectionData collection = Resolve(state.CollectionId);
@@ -118,31 +143,42 @@ namespace GungeonTogether.Lan
                 if (sliced != null) { sliced.anchor = (tk2dBaseSprite.Anchor)state.Anchor; sliced.dimensions = new Vector2(state.Width, state.HeightPixels); }
                 if (clipped != null) { clipped.clipBottomLeft = new Vector2(state.ClipX, state.ClipY); clipped.clipTopRight = new Vector2(state.ClipRight, state.ClipTop); }
                 sprite.gameObject.layer = state.Layer;
-                sprite.transform.position = new Vector3(state.X, state.Y, state.Z);
-                sprite.transform.rotation = Quaternion.Euler(0, 0, state.Rotation);
+                Vector3 position = new Vector3(state.X, state.Y, state.Z);
+                float rotation = state.Rotation;
+                SpriteState following;
+                if (nextSprites.TryGetValue(state.Id, out following) && following.CollectionId == state.CollectionId && following.Kind == state.Kind) {
+                    Vector3 target = new Vector3(following.X, following.Y, following.Z);
+                    // Room teleports must remain teleports, not a trip through walls.
+                    if ((target - position).sqrMagnitude < 64f) position = Vector3.Lerp(position, target, blend);
+                    rotation = Mathf.LerpAngle(rotation, following.Rotation, blend);
+                }
+                sprite.transform.position = position;
+                sprite.transform.rotation = Quaternion.Euler(0, 0, rotation);
                 sprite.transform.localScale = new Vector3(state.ScaleX, state.ScaleY, state.ScaleZ);
                 sprite.FlipX = (state.Flags & 1) != 0; sprite.FlipY = (state.Flags & 2) != 0;
                 sprite.SortingOrder = state.SortingOrder; sprite.HeightOffGround = state.Height;
                 sprite.color = new Color32((byte)state.Color, (byte)(state.Color >> 8), (byte)(state.Color >> 16), (byte)(state.Color >> 24));
             }
-            List<int> removed = new List<int>();
+            removed.Clear();
             foreach (KeyValuePair<int, tk2dBaseSprite> pair in proxies) if (!present.Contains(pair.Key)) { if (pair.Value != null) UnityEngine.Object.Destroy(pair.Value.gameObject); removed.Add(pair.Key); }
             foreach (int id in removed) proxies.Remove(id);
-            RemotePlayerPosition = new Vector2(snapshot.PlayerX, snapshot.PlayerY);
-            LastSnapshot = snapshot;
+            Vector2 playerStart = new Vector2(snapshot.PlayerX, snapshot.PlayerY);
+            Vector2 playerEnd = new Vector2(next.PlayerX, next.PlayerY);
+            RemotePlayerPosition = (playerEnd - playerStart).sqrMagnitude < 64 ? Vector2.Lerp(playerStart, playerEnd, blend) : playerStart;
             PlayerController local = GameManager.Instance.PrimaryPlayer;
             if (local != null) {
-                local.transform.position = new Vector3(snapshot.PlayerX, snapshot.PlayerY, local.transform.position.z);
-                Dungeonator.RoomHandler room = GameManager.Instance.Dungeon.data.GetAbsoluteRoomFromPosition(new IntVector2((int)Math.Floor(snapshot.PlayerX), (int)Math.Floor(snapshot.PlayerY)));
+                local.transform.position = new Vector3(RemotePlayerPosition.x, RemotePlayerPosition.y, local.transform.position.z);
+                Dungeonator.RoomHandler room = GameManager.Instance.Dungeon.data.GetAbsoluteRoomFromPosition(new IntVector2((int)Math.Floor(RemotePlayerPosition.x), (int)Math.Floor(RemotePlayerPosition.y)));
                 if (room != null && room != local.CurrentRoom) local.ForceChangeRoom(room);
             }
             CameraController controller = GameManager.Instance.MainCameraController;
             if (controller != null) {
                 Disable(controller);
-                controller.Camera.transform.position = new Vector3(snapshot.CameraX, snapshot.CameraY, snapshot.CameraZ);
-                controller.Camera.orthographicSize = snapshot.CameraSize;
+                Vector3 start = new Vector3(snapshot.CameraX, snapshot.CameraY, snapshot.CameraZ);
+                Vector3 end = new Vector3(next.CameraX, next.CameraY, next.CameraZ);
+                controller.Camera.transform.position = (end - start).sqrMagnitude < 144 ? Vector3.Lerp(start, end, blend) : start;
+                controller.Camera.orthographicSize = Mathf.Lerp(snapshot.CameraSize, next.CameraSize, blend);
             }
-            SuppressLocalSimulation();
         }
 
         private void Disable(Behaviour behaviour)
@@ -186,6 +222,7 @@ namespace GungeonTogether.Lan
         {
             foreach (tk2dBaseSprite sprite in proxies.Values) if (sprite != null) UnityEngine.Object.Destroy(sprite.gameObject);
             proxies.Clear(); definitions.Clear(); collections.Clear(); hostCollections.Clear();
+            frames.Clear(); nextSprites.Clear(); indexedFrame = null;
             foreach (Renderer renderer in hidden) if (renderer != null) renderer.enabled = true;
             hidden.Clear();
             foreach (Behaviour behaviour in disabled) if (behaviour != null) behaviour.enabled = true;

@@ -1,78 +1,63 @@
+using System;
+using GungeonTogether.Lan;
 using UnityEngine;
 
 namespace GungeonTogether.Networking
 {
-    public class RemotePlayerAvatar : MonoBehaviour
+    // A visual proxy only. It never moves or collides with the local controller.
+    public sealed class RemotePlayerAvatar : MonoBehaviour
     {
-        private tk2dSprite _sprite;
-        private Transform _spriteTransform;
-        private Vector3 _targetPosition;
-        private bool _hasTarget;
+        private readonly SnapshotBuffer<LanPlayerState> frames = new SnapshotBuffer<LanPlayerState>(0.12);
+        private tk2dSprite sprite;
+        private string collectionKey;
+        private tk2dSpriteCollectionData collection;
+        public int RenderedFrames { get; private set; }
+        public float DistanceMoved { get; private set; }
+        public string CollectionName { get { return collection == null ? "" : collection.name; } }
+        private Vector3 firstPosition;
 
-        public static RemotePlayerAvatar Create(ulong steamId, Vector2 position, float rotation)
+        public static RemotePlayerAvatar Create(ulong peer, Vector2 position, float rotation)
         {
-            GameObject go = new GameObject("RemotePlayer_" + steamId);
-            RemotePlayerAvatar avatar = go.AddComponent<RemotePlayerAvatar>();
-            avatar.Initialise(position, rotation);
-            return avatar;
+            GameObject go = new GameObject("GT_FoyerPeer_" + peer);
+            return go.AddComponent<RemotePlayerAvatar>();
         }
 
-        private void Initialise(Vector2 position, float rotation)
-        {
-            transform.position = new Vector3(position.x, position.y, 0f);
-            transform.rotation = Quaternion.Euler(0f, 0f, rotation);
-            _targetPosition = transform.position;
-            _hasTarget = true;
+        public void Apply(LanPlayerState state)
+        { frames.Push(state, state.Sequence, state.SentAt, Time.realtimeSinceStartup); }
 
-            PlayerController localPlayer = GetLocalPlayer();
-            tk2dBaseSprite sourceSprite = localPlayer != null ? localPlayer.sprite : null;
-            if (sourceSprite == null)
-            {
-                Debug.LogWarning("[RemotePlayer] Could not find local player sprite to copy.");
-                return;
+        private void LateUpdate()
+        {
+            LanPlayerState from, to; float blend;
+            if (!frames.Sample(Time.realtimeSinceStartup, out from, out to, out blend)) return;
+            string key = from.CollectionGuid + "|" + from.Collection;
+            if (collection == null || collectionKey != key) {
+                // Loading the peer's own prefab also resolves different heroes
+                // and avoids interpreting its sprite index in our collection.
+                NativeWorld.CharacterPrefab(from.Character);
+                collection = FindCollection(from);
+                collectionKey = key;
             }
-
-            GameObject spriteObject = new GameObject("Sprite");
-            spriteObject.transform.parent = transform;
-            spriteObject.transform.localPosition = sourceSprite.transform.localPosition;
-            spriteObject.transform.localRotation = sourceSprite.transform.localRotation;
-            spriteObject.transform.localScale = sourceSprite.transform.localScale;
-            _spriteTransform = spriteObject.transform;
-
-            _sprite = spriteObject.AddComponent<tk2dSprite>();
-            _sprite.SetSprite(sourceSprite.Collection, sourceSprite.spriteId);
-            _sprite.HeightOffGround = sourceSprite.HeightOffGround;
-            _sprite.SortingOrder = sourceSprite.SortingOrder;
-            _sprite.FlipX = sourceSprite.FlipX;
-            _sprite.scale = sourceSprite.scale;
-            _sprite.color = sourceSprite.color;
+            if (collection == null || from.SpriteId >= collection.spriteDefinitions.Length) return;
+            if (sprite == null) sprite = gameObject.AddComponent<tk2dSprite>();
+            if (sprite.Collection != collection || sprite.spriteId != from.SpriteId) sprite.SetSprite(collection, from.SpriteId);
+            Vector3 start = new Vector3(from.X, from.Y, from.Z), end = new Vector3(to.X, to.Y, to.Z);
+            transform.position = (end - start).sqrMagnitude < 64 ? Vector3.Lerp(start, end, blend) : start;
+            if (RenderedFrames == 0) firstPosition = transform.position;
+            RenderedFrames++; DistanceMoved = Mathf.Max(DistanceMoved, Vector3.Distance(firstPosition, transform.position));
+            transform.rotation = Quaternion.Euler(0, 0, Mathf.LerpAngle(from.Rotation, to.Rotation, blend));
+            transform.localScale = new Vector3(from.ScaleX, from.ScaleY, 1);
+            sprite.HeightOffGround = from.Height; sprite.FlipX = from.FlipX;
         }
 
-        public void Apply(Vector2 position, float rotation, bool flipX, int spriteId = -1)
+        private static tk2dSpriteCollectionData FindCollection(LanPlayerState state)
         {
-            _targetPosition = new Vector3(position.x, position.y, 0f);
-            _hasTarget = true;
-            transform.rotation = Quaternion.Euler(0f, 0f, rotation);
-
-            if (_sprite != null)
-            {
-                _sprite.FlipX = flipX;
-                if (spriteId >= 0 && _sprite.Collection != null && spriteId < _sprite.Collection.spriteDefinitions.Length)
-                    _sprite.SetSprite(_sprite.Collection, spriteId);
+            foreach (tk2dSpriteCollectionData candidate in Resources.FindObjectsOfTypeAll<tk2dSpriteCollectionData>())
+                if ((!string.IsNullOrEmpty(state.CollectionGuid) && candidate.spriteCollectionGUID == state.CollectionGuid) ||
+                    (string.IsNullOrEmpty(state.CollectionGuid) && (candidate.name == state.Collection || candidate.spriteCollectionName == state.Collection))) return candidate.inst;
+            if (!string.IsNullOrEmpty(state.CollectionGuid)) {
+                try { return tk2dSystem.LoadResourceByGUID<tk2dSpriteCollectionData>(state.CollectionGuid); } catch { }
             }
-        }
-
-        private void Update()
-        {
-            if (!_hasTarget) return;
-
-            transform.position = Vector3.Lerp(transform.position, _targetPosition, Time.deltaTime * 18f);
-        }
-
-        private static PlayerController GetLocalPlayer()
-        {
-            GameManager gameManager = Object.FindObjectOfType<GameManager>();
-            return gameManager != null ? gameManager.PrimaryPlayer : null;
+            return null;
         }
     }
 }
