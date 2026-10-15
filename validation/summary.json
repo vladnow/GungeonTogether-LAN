@@ -1,22 +1,75 @@
 {
-  "version": "0.2.2",
-  "date": "2026-10-14",
-  "runtime_sha256": "c8ca24150a1f4f6fea36d3277f014d55a7d3d41682301f6d77a8caccec60d494",
+  "version": "0.3.0",
+  "date": "2026-10-15",
+  "runtime_sha256": "c760078ddd8d271dc28194fed54ae9f2771eced45001ac240d428324409a9d99",
   "ready_for_alpha_review": true,
-  "dungeon_smoke_passes": 2,
-  "automated_checks": 69,
-  "lan_checks": 27,
+  "development_preview": false,
+  "automated_checks": 108,
+  "lan_checks": 28,
   "dungeon_protocol_checks": 23,
   "profile_checks": 19,
-  "native_normal_profile": "PASS",
-  "native_manager_auto_profile": "PASS",
-  "native_fixture_save_load": "PASS",
-  "user_save_files_unchanged_during_profile_tests": 6,
+  "rendering_character_checks": 38,
+  "native_binding_checks": 15,
+  "dungeon_smoke_passes": 5,
+  "native_characters": [
+    {
+      "character": "cultist",
+      "first_floor": "93d0210570c3129b0a44e01a4c0ffe6d3d97c2b9b82eb973c9affb083cf13775",
+      "second_floor": "c60821a189b648f703e3da52752f95a1b590fe72107bd1438720d17910a1107f",
+      "native_exceptions": 0
+    },
+    {
+      "character": "pilot",
+      "first_floor": "963e95f3a1b37a48c1b56b09fe0cf1957ba2fed4af618ccaf4bd8c475ab60d14",
+      "second_floor": "279dd8916da5f7bc9384c14fc4b3fbdd78a0e1694be666ec2ac3450370df1604",
+      "native_exceptions": 0
+    },
+    {
+      "character": "marine",
+      "first_floor": "b344f5bca8ab3e46aaeb24bdaec264998ac1f32a65f7314d5bee22dce95f2356",
+      "second_floor": "934bbf9ba697b249e5f4c049e1306abe1944a719b0ef9684a6619b1742db4c7b",
+      "native_exceptions": 0
+    },
+    {
+      "character": "convict",
+      "first_floor": "2169c6231258022a36b0cb5520717b34fa8ba457cd6106ae5d07198d36792472",
+      "second_floor": "392febd3eca7de5e5ee12f91a94a23cf8a035e2b6254fcc8267845c1d8618c99",
+      "native_exceptions": 0
+    },
+    {
+      "character": "hunter",
+      "first_floor": "c6daecc5a0f415fe3aee56f3f71b2594c8aea429170e44238ef537b3c5d9b12e",
+      "second_floor": "97ec2b9f5256798cf2286ce387bf05aa0e701193e67b7b4401bb5a25f1028187",
+      "native_exceptions": 0
+    }
+  ],
+  "normal_save_files_unchanged": 6,
+  "higher_floor_smoke": [
+    {
+      "epoch": 3,
+      "scene": "tt_mines",
+      "hash": "35888b0ab6bbb23df710de80a29ee0f1d045ffe612122e50bd0d273489bd958e"
+    }
+  ],
+  "higher_floor_guest": "hunter",
+  "highest_main_floor_verified": 3,
+  "all_rooms_cleared": false,
+  "known_blockers": [
+    "Reproduced fourth-floor layout mismatch from initial seed 299027071; run stops at geometry barrier."
+  ],
+  "recommended_for_full_runs": false,
+  "observed_startup_instability": "A final-build Pilot attempt ended with an unexpected process exit and connection refusals; cause unconfirmed. Evidence retained separately and case rerun.",
+  "fourth_floor_mismatch": {
+    "client": "65c98fd2eb383e51b4aea742615ddc9401a775ca864293fdd4810c0cdd9c1a23",
+    "host": "ec477c46de993d5d50a0ea005aa7b81a158378c34936bd6decfd828a4f59c903"
+  },
+  "launcher_fixture_checks": 6,
+  "launcher_embedded_runtime_verified": true,
   "physical_pcs_radmin_tested": false,
   "full_campaign_tested": false,
   "real_manager_zip_import_tested": false,
   "publicly_uploaded": false,
   "test_audio": "disabled",
-  "future_graphical_launches": "blocked until nonblocking desktop access is established",
-  "native_foyer_initialization_exceptions": true
+  "test_windows": "800x600, no activation, cursor None, background simulation",
+  "native_test_method": "two local processes, native input/projectile damage to AI-disabled Bullet Kin, forced native transition to tt5; menu screenshots saved by game"
 }

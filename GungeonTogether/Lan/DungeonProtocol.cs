@@ -4,7 +4,7 @@ using System.IO;
 
 namespace GungeonTogether.Lan
 {
-    public enum DungeonMessage : byte { Input = 2, Level = 3, Ready = 4, Snapshot = 5, Collection = 6, Stop = 7 }
+    public enum DungeonMessage : byte { Input = 2, Level = 3, Ready = 4, Snapshot = 5, Collection = 6, Stop = 7, Character = 8 }
 
     public sealed class RemoteInput
     {
@@ -30,12 +30,15 @@ namespace GungeonTogether.Lan
     public sealed class LevelCommand
     {
         public int Epoch, Seed;
+        public int HostCharacter = 1, GuestCharacter;
         public string Scene = "tt_castle", LayoutHash = "", GenerationData = "";
-        public byte[] Encode() { return Wire.Write(DungeonMessage.Level, delegate(BinaryWriter w) { w.Write(Epoch); w.Write(Seed); w.Write(Scene); w.Write(LayoutHash); w.Write(GenerationData); }); }
+        public byte[] Encode() { return Wire.Write(DungeonMessage.Level, delegate(BinaryWriter w) { w.Write(Epoch); w.Write(Seed); w.Write(Scene); w.Write(LayoutHash); w.Write(GenerationData); w.Write(HostCharacter); w.Write(GuestCharacter); }); }
         public static LevelCommand Decode(byte[] bytes)
         {
             return Wire.Read(bytes, DungeonMessage.Level, delegate(BinaryReader r) {
                 LevelCommand value = new LevelCommand { Epoch = r.ReadInt32(), Seed = r.ReadInt32(), Scene = Wire.String(r, 128), LayoutHash = Wire.String(r, 64), GenerationData = Wire.String(r, 131072) };
+                value.HostCharacter = r.ReadInt32(); value.GuestCharacter = r.ReadInt32();
+                if (!CharacterCatalog.Valid(value.HostCharacter) || !CharacterCatalog.ValidGuest(value.GuestCharacter)) throw new IOException("Invalid run characters.");
                 if (value.Epoch < 1 || value.Seed <= 0 || !value.Scene.StartsWith("tt", StringComparison.Ordinal) || value.Scene.IndexOfAny(new char[] { '/', '\\', '.' }) >= 0 || value.LayoutHash.Length != 64)
                     throw new IOException("Invalid dungeon command.");
                 return value;
@@ -88,6 +91,7 @@ namespace GungeonTogether.Lan
     {
         public int Epoch;
         public uint Sequence;
+        public double SentAt;
         public float CameraX, CameraY, CameraZ, CameraSize, PlayerX, PlayerY, Health, Armor;
         public int Ammo;
         public bool Paused;
@@ -96,7 +100,7 @@ namespace GungeonTogether.Lan
         {
             if (Sprites.Count > 4096) throw new IOException("Too many replicated sprites.");
             return Wire.Write(DungeonMessage.Snapshot, delegate(BinaryWriter w) {
-                w.Write(Epoch); w.Write(Sequence); w.Write(CameraX); w.Write(CameraY); w.Write(CameraZ); w.Write(CameraSize);
+                w.Write(Epoch); w.Write(Sequence); w.Write(SentAt); w.Write(CameraX); w.Write(CameraY); w.Write(CameraZ); w.Write(CameraSize);
                 w.Write(PlayerX); w.Write(PlayerY); w.Write(Health); w.Write(Armor); w.Write(Ammo); w.Write(Paused); w.Write(Sprites.Count);
                 foreach (SpriteState sprite in Sprites) sprite.Write(w);
             });
@@ -104,7 +108,8 @@ namespace GungeonTogether.Lan
         public static WorldSnapshot Decode(byte[] bytes)
         {
             return Wire.Read(bytes, DungeonMessage.Snapshot, delegate(BinaryReader r) {
-                WorldSnapshot value = new WorldSnapshot { Epoch = r.ReadInt32(), Sequence = r.ReadUInt32(), CameraX = r.ReadSingle(), CameraY = r.ReadSingle(), CameraZ = r.ReadSingle(), CameraSize = r.ReadSingle(), PlayerX = r.ReadSingle(), PlayerY = r.ReadSingle(), Health = r.ReadSingle(), Armor = r.ReadSingle(), Ammo = r.ReadInt32(), Paused = r.ReadBoolean() };
+                WorldSnapshot value = new WorldSnapshot { Epoch = r.ReadInt32(), Sequence = r.ReadUInt32(), SentAt = r.ReadDouble(), CameraX = r.ReadSingle(), CameraY = r.ReadSingle(), CameraZ = r.ReadSingle(), CameraSize = r.ReadSingle(), PlayerX = r.ReadSingle(), PlayerY = r.ReadSingle(), Health = r.ReadSingle(), Armor = r.ReadSingle(), Ammo = r.ReadInt32(), Paused = r.ReadBoolean() };
+                Wire.Time(value.SentAt);
                 Wire.Range(value.CameraX, -100000, 100000); Wire.Range(value.CameraY, -100000, 100000); Wire.Range(value.CameraZ, -100000, 100000); Wire.Range(value.CameraSize, 0.01f, 10000);
                 Wire.Range(value.PlayerX, -100000, 100000); Wire.Range(value.PlayerY, -100000, 100000); Wire.Range(value.Health, 0, 10000); Wire.Range(value.Armor, 0, 10000);
                 int count = r.ReadInt32();
@@ -129,6 +134,7 @@ namespace GungeonTogether.Lan
         }
         public static string String(BinaryReader r, int max) { string value = r.ReadString(); if (value.Length > max) throw new IOException("String too long."); return value; }
         public static void Range(float value, float min, float max) { if (float.IsNaN(value) || float.IsInfinity(value) || value < min || value > max) throw new IOException("Invalid numeric snapshot value."); }
+        public static void Time(double value) { if (double.IsNaN(value) || double.IsInfinity(value) || value < 0 || value > 1e12) throw new IOException("Invalid frame timestamp."); }
         public static bool Newer(uint value, uint previous) { return unchecked((int)(value - previous)) > 0; }
     }
 }

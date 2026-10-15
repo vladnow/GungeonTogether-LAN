@@ -8,19 +8,22 @@ using GungeonTogether.Networking;
 
 namespace GungeonTogether.Lan
 {
-    [BepInPlugin("com.gungeontogether.lan", "Gungeon Together LAN Alpha", "0.2.2")]
+    [BepInPlugin("com.gungeontogether.lan", "Gungeon Together LAN Alpha", "0.3.0")]
     [BepInIncompatibility("com.llamerrr.gungeontogether")]
-    public sealed class DungeonPlugin : BaseUnityPlugin
+    public sealed partial class DungeonPlugin : BaseUnityPlugin
     {
         public static DungeonPlugin Instance;
         public DungeonSession Session { get; private set; }
         private LanTransport transport;
         private Harmony harmony;
         private string ip, bind, port, code, fingerprint, error = "";
-        private Rect window = new Rect(20, 20, 590, 450);
+        private Rect window = new Rect(36, 36, 620, 586);
         private bool visible = true;
         private RemotePlayerAvatar foyerAvatar;
         private float nextPosition;
+        private uint foyerSequence;
+        private int guestChoice;
+        private PlayerController menuPlayer;
         private string smokeRole;
         public bool IsSmoke { get { return smokeRole != null || profileCheck; } }
         public bool UsesSeparateProfile { get; private set; }
@@ -39,6 +42,9 @@ namespace GungeonTogether.Lan
         private bool smokeComplete;
         private Vector3 smokeCultistStart;
         private int smokeStartAmmo;
+        private DesktopSmoke desktopSmoke;
+        private float smokeLobbyAt;
+        private bool smokeFoyerPassed, smokeDesktopPassed, smokeMenuRequested, smokeMenuVisible;
 
         private void Awake()
         {
@@ -55,22 +61,38 @@ namespace GungeonTogether.Lan
             visible = UsesSeparateProfile && !profileCheck;
             if (IsSmoke) {
                 GameManager.AUDIO_ENABLED = false; AudioListener.pause = true; AudioListener.volume = 0;
+                string privateSaves = Path.Combine(Paths.GameRootPath, "BepInEx/GungeonTogetherLAN/dungeon-profile");
+                Directory.CreateDirectory(privateSaves);
+                SaveManager.SavePath = privateSaves; SaveManager.OldSavePath = privateSaves;
+                desktopSmoke = gameObject.AddComponent<DesktopSmoke>();
             }
             if (smokeRole != null) {
-                Foyer.DoIntroSequence = false; Foyer.DoMainMenu = false; visible = false; smokeDeadline = Time.realtimeSinceStartup + 110;
+                Foyer.DoIntroSequence = false; Foyer.DoMainMenu = false; visible = false; smokeDeadline = Time.realtimeSinceStartup + 150;
             }
-            harmony = new Harmony("com.gungeontogether.lan.dungeon-0.2.2");
-            harmony.PatchAll(typeof(DungeonPlugin).Assembly);
+            harmony = new Harmony("com.gungeontogether.lan.dungeon-0.3.0");
+            try { harmony.PatchAll(typeof(DungeonPlugin).Assembly); }
+            catch (Exception ex) {
+                if (IsSmoke) { Log("GT_DUNGEON_SMOKE_FAIL: patch initialization: " + ex); Application.Quit(); }
+                throw;
+            }
             ip = Config.Bind("LAN", "HostIP", "127.0.0.1", "Host's Radmin IPv4.").Value;
             bind = Config.Bind("LAN", "BindIP", "0.0.0.0", "Host's own Radmin IPv4 or all interfaces.").Value;
             port = Config.Bind("LAN", "Port", LanTransport.DefaultPort, "TCP port.").Value.ToString();
+            guestChoice = Config.Bind("LAN", "GuestCharacter", 0, "Guest run character: 0 Cultist, 1 Pilot, 2 Marine, 3 Convict, 4 Hunter.").Value;
+            if (!CharacterCatalog.ValidGuest(guestChoice)) guestChoice = 0;
+            foreach (string arg in Environment.GetCommandLineArgs()) {
+                if (smokeRole != null && arg.StartsWith("--gt-smoke-character=", StringComparison.Ordinal)) {
+                    int choice;
+                    if (int.TryParse(arg.Substring("--gt-smoke-character=".Length), out choice) && CharacterCatalog.ValidGuest(choice)) guestChoice = choice;
+                }
+            }
             code = Guid.NewGuid().ToString("N").Substring(0, 8);
             fingerprint = GameFingerprint();
             transport = new LanTransport(delegate { return Time.realtimeSinceStartup; });
             transport.PacketReceived += Receive;
-            transport.ConnectedEvent += delegate { if (Session != null) Session.Dispose(); Session = new DungeonSession(transport, gameObject, Log); Log("GT_DUNGEON_CONNECTED"); };
+            transport.ConnectedEvent += delegate { ClearAvatar(); foyerSequence = 0; if (Session != null) Session.Dispose(); Session = new DungeonSession(transport, gameObject, Log); if (!transport.IsHost) Session.ChooseGuest(guestChoice); Log("GT_DUNGEON_CONNECTED"); };
             transport.DisconnectedEvent += delegate { ClearAvatar(); if (Session != null) Session.Disconnected(); Log(transport.Status); };
-            Log("GT_DUNGEON_READY 0.2.2; native rendering, host authority; game=" + fingerprint);
+            Log("GT_DUNGEON_READY 0.3.0; buffered rendering, character selection; game=" + fingerprint);
             Log("GT_PROFILE_MODE " + (UsesSeparateProfile ? "LAN" : "NORMAL"));
         }
 
@@ -88,18 +110,21 @@ namespace GungeonTogether.Lan
         {
             if (transport == null) return;
             if (Input.GetKeyDown(KeyCode.P) && (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl))) visible = !visible;
+            if (visible && Input.GetKeyDown(KeyCode.Escape)) visible = false;
+            UpdateMenuInput();
             transport.Poll();
             if (Session != null) { Session.MuteClientInput = visible; Session.Update(); }
             if (Session != null && Session.Phase == DungeonSession.RunPhase.Fault && smokeRole == null) visible = true;
             if (profileCheck) { TickProfileCheck(); return; }
-            if (smokeRole != null) { TickSmoke(); return; }
+            if (smokeRole != null) TickSmoke();
             if (Session != null && Session.InRun) return;
             if (transport.Connected && Time.realtimeSinceStartup >= nextPosition) {
                 nextPosition = Time.realtimeSinceStartup + 0.05f;
                 GameManager gm = UnityEngine.Object.FindObjectOfType<GameManager>();
                 if (gm != null && gm.IsFoyer && gm.PrimaryPlayer != null && gm.PrimaryPlayer.sprite != null) {
                     PlayerController p = gm.PrimaryPlayer;
-                    transport.Send(new LanPlayerState { InFoyer = true, X = p.transform.position.x, Y = p.transform.position.y, Rotation = p.transform.eulerAngles.z, SpriteId = p.sprite.spriteId, FlipX = p.sprite.FlipX, Collection = p.sprite.Collection.name }.Encode());
+                    Vector3 position = p.sprite.transform.position, scale = p.sprite.transform.lossyScale;
+                    transport.Send(new LanPlayerState { InFoyer = true, Sequence = ++foyerSequence, SentAt = Time.realtimeSinceStartup, X = position.x, Y = position.y, Z = position.z, Height = p.sprite.HeightOffGround, ScaleX = scale.x * p.sprite.scale.x, ScaleY = scale.y * p.sprite.scale.y, Rotation = p.sprite.transform.eulerAngles.z, SpriteId = p.sprite.spriteId, FlipX = p.sprite.FlipX, Collection = p.sprite.Collection.name, CollectionGuid = p.sprite.Collection.spriteCollectionGUID ?? "", Character = CharacterCatalog.FromIdentity(p.characterIdentity.ToString()) }.Encode());
                 }
             }
         }
@@ -111,52 +136,23 @@ namespace GungeonTogether.Lan
                 if (Session != null && Session.InRun) return;
                 LanPlayerState state = LanPlayerState.Decode(bytes);
                 GameManager gm = UnityEngine.Object.FindObjectOfType<GameManager>();
-                if (gm == null || !gm.IsFoyer || gm.PrimaryPlayer == null || gm.PrimaryPlayer.sprite == null || state.Collection != gm.PrimaryPlayer.sprite.Collection.name) return;
+                if (!state.InFoyer || gm == null || !gm.IsFoyer || gm.PrimaryPlayer == null) return;
                 if (foyerAvatar == null) foyerAvatar = RemotePlayerAvatar.Create(transport.IsHost ? 2UL : 1UL, new Vector2(state.X, state.Y), state.Rotation);
-                foyerAvatar.Apply(new Vector2(state.X, state.Y), state.Rotation, state.FlipX, state.SpriteId);
-            } else if (Session != null) { ClearAvatar(); if (bytes[0] == (byte)DungeonMessage.Level) visible = false; Session.Receive(bytes); }
+                foyerAvatar.Apply(state);
+            } else if (Session != null) { if (bytes[0] == (byte)DungeonMessage.Level) { ClearAvatar(); visible = false; } Session.Receive(bytes); }
         }
         private void ClearAvatar() { if (foyerAvatar != null) Destroy(foyerAvatar.gameObject); foyerAvatar = null; }
 
-        private void OnGUI()
+        private void LateUpdate() { if (Session != null) Session.LateUpdate(); }
+
+        private void UpdateMenuInput()
         {
-            if (transport == null) return;
-            if (Session != null && Session.Mirroring && Session.Snapshot != null) {
-                WorldSnapshot snapshot = Session.Snapshot;
-                GUI.Box(new Rect(15, 15, 390, 52), "Cultist | HP " + snapshot.Health.ToString("0.0") + " | Armor " + snapshot.Armor.ToString("0") + " | Ammo " + snapshot.Ammo + "\n" + (snapshot.Paused ? "Host paused" : "Ctrl+P menu; host controls pause and map"));
-            }
-            if (!visible) return;
-            window = GUI.Window(27631, window, DrawWindow, "Gungeon Together 0.2.2 — dungeon synchronization alpha");
+            PlayerController player = GameManager.HasInstance ? GameManager.Instance.PrimaryPlayer : null;
+            if (menuPlayer != null && (menuPlayer != player || !visible || !UsesSeparateProfile)) menuPlayer.ClearInputOverride("GT_Menu");
+            menuPlayer = player;
+            if (menuPlayer != null && visible && UsesSeparateProfile && !IsSmoke) menuPlayer.SetInputOverride("GT_Menu");
         }
-        private void DrawWindow(int id)
-        {
-            if (!UsesSeparateProfile) {
-                GUILayout.Label("Normal Steam save profile is active. Your usual progress is used.");
-                GUILayout.Label("For LAN, close the game and use Start Modded in your LAN manager profile.");
-                GUILayout.Label("LAN is disabled in this launch to protect your normal save profile.");
-                GUI.DragWindow(new Rect(0, 0, 590, 20));
-                return;
-            }
-            GUILayout.Label("Two games render locally. The host runs combat for both players.");
-            GUILayout.Label("Experimental: use a clean game; a separate LAN save profile is used.");
-            GUILayout.Label("Radmin IPv4 of host"); ip = GUILayout.TextField(ip, 64);
-            GUILayout.Label("Listen IPv4 on host"); bind = GUILayout.TextField(bind, 64);
-            GUILayout.BeginHorizontal(); GUILayout.Label("TCP port", GUILayout.Width(70)); port = GUILayout.TextField(port, 5, GUILayout.Width(70)); GUILayout.Label("Session code", GUILayout.Width(95)); code = GUILayout.TextField(code, 64); GUILayout.EndHorizontal();
-            bool enabled = GUI.enabled;
-            GUI.enabled = !transport.Active;
-            GUILayout.BeginHorizontal(); if (GUILayout.Button("HOST")) Connect(true); if (GUILayout.Button("JOIN BY IP")) Connect(false); GUILayout.EndHorizontal();
-            GUI.enabled = transport.Connected && transport.IsHost && Session != null && !Session.InRun;
-            if (GUILayout.Button("START SYNCHRONIZED DUNGEON (host only)")) {
-                try { ClearAvatar(); Session.StartHost(); visible = false; } catch (Exception ex) { error = ex.Message; Log(error); }
-            }
-            GUI.enabled = enabled;
-            if (GUILayout.Button("DISCONNECT / RETURN TO FOYER")) ReturnToFoyer();
-            GUILayout.Label(transport.Status);
-            if (Session != null) GUILayout.Label(Session.Status);
-            if (error.Length != 0) GUILayout.Label(error);
-            GUILayout.Label("Client: your usual movement/aim/shoot/roll/reload/interact/blank keys.\nClient plays native Cultist. Host chooses pause, map and floor transitions.");
-            GUI.DragWindow(new Rect(0, 0, 590, 20));
-        }
+
         private void Connect(bool host)
         {
             try {
@@ -223,17 +219,22 @@ namespace GungeonTogether.Lan
                 if (Time.realtimeSinceStartup > smokeDeadline) throw new IOException("Smoke timed out: " + (Session == null ? transport.Status : Session.Status));
                 GameManager gm = UnityEngine.Object.FindObjectOfType<GameManager>();
                 if (gm == null || gm.Dungeon == null || Dungeonator.Dungeon.IsGenerating || gm.IsLoadingLevel) return;
+                if (desktopSmoke != null && desktopSmoke.Verified && !smokeDesktopPassed) {
+                    smokeDesktopPassed = true;
+                    Log("GT_DESKTOP_SAFE_PASS fullscreen=" + Screen.fullScreen + " size=" + Screen.width + "x" + Screen.height + " cursor=" + Cursor.lockState + " background=" + Application.runInBackground);
+                }
                 if (Time.realtimeSinceStartup >= nextSmokeDiagnostic) {
                     nextSmokeDiagnostic = Time.realtimeSinceStartup + 5;
                     Log("GT_SMOKE_STATE foyer=" + gm.IsFoyer + " loading=" + gm.IsLoadingLevel + " generating=" + Dungeonator.Dungeon.IsGenerating + " player=" + (gm.PrimaryPlayer != null) + " scene=" + (gm.GetLastLoadedLevelDefinition() == null ? "null" : gm.GetLastLoadedLevelDefinition().dungeonSceneName));
                 }
                 if (!InControl.InputManager.IsSetup) typeof(InControl.InputManager).GetMethod("SetupInternal", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic).Invoke(null, null);
                 if (gm.IsFoyer && gm.PrimaryPlayer == null) {
-                    GameObject prefab = (GameObject)BraveResources.Load("PlayerRogue", ".prefab");
+                    GameObject prefab = NativeWorld.CharacterPrefab(smokeRole == "host" ? 1 : 4);
                     GameManager.PlayerPrefabForNewGame = prefab;
                     Dungeonator.RoomHandler room = gm.Dungeon.data.rooms[0];
                     Vector3 pos = new Vector3(room.area.basePosition.x + room.area.dimensions.x / 2f, room.area.basePosition.y + room.area.dimensions.y / 2f, 0);
                     gm.PrimaryPlayer = UnityEngine.Object.Instantiate(prefab, pos, Quaternion.identity).GetComponent<PlayerController>();
+                    gm.PrimaryPlayer.PlayerIDX = 0;
                     gm.PrimaryPlayer.ForceChangeRoom(room);
                 }
                 if (!transport.Active && Session == null) {
@@ -241,7 +242,20 @@ namespace GungeonTogether.Lan
                     else transport.Join("127.0.0.1", smokePort, "dungeon-smoke", fingerprint);
                     Log("GT_DUNGEON_SMOKE_CONNECTING");
                 }
-                if (smokeRole == "host" && transport.Connected && Session != null && !smokeRunStarted) {
+                if (transport.Connected && gm.IsFoyer && Session != null && !Session.InRun) {
+                    if (smokeLobbyAt == 0) smokeLobbyAt = Time.realtimeSinceStartup;
+                    float lobbyTime = Time.realtimeSinceStartup - smokeLobbyAt;
+                    gm.PrimaryPlayer.usingForcedInput = lobbyTime > 0.3f && lobbyTime < 1.0f;
+                    gm.PrimaryPlayer.forcedInput = new Vector2(smokeRole == "host" ? 1 : -1, 0);
+                    if (lobbyTime > 1.7f && !smokeFoyerPassed) {
+                        if (foyerAvatar == null || foyerAvatar.RenderedFrames < 10 || foyerAvatar.DistanceMoved < 0.2f) throw new IOException("Foyer interpolation did not render remote movement.");
+                        smokeFoyerPassed = true;
+                        Log("GT_FOYER_INTERPOLATION_PASS frames=" + foyerAvatar.RenderedFrames + " distance=" + foyerAvatar.DistanceMoved + " collection=" + foyerAvatar.CollectionName);
+                    }
+                    if (lobbyTime > 1.8f && !smokeMenuRequested) { smokeMenuRequested = true; StartCoroutine(CaptureSmokeMenu()); }
+                }
+                if (smokeRole == "host" && transport.Connected && Session != null && Session.GuestChoiceReceived && smokeFoyerPassed && Time.realtimeSinceStartup - smokeLobbyAt > 3 && !smokeRunStarted) {
+                    gm.PrimaryPlayer.usingForcedInput = false;
                     smokeRunStarted = true; Session.StartHost(); Log("GT_DUNGEON_SMOKE_RUN_STARTED");
                 }
                 if (Session != null && Session.Phase == DungeonSession.RunPhase.Fault) throw new IOException(Session.Status);
@@ -251,6 +265,7 @@ namespace GungeonTogether.Lan
                         smokeCultistStart = gm.SecondaryPlayer.transform.position;
                         smokeStartAmmo = gm.SecondaryPlayer.CurrentGun == null ? 0 : gm.SecondaryPlayer.CurrentGun.CurrentAmmo;
                     }
+                    VerifySmokeCharacters(gm);
                 }
                 if (smokeRole == "client" && Session != null && Session.Snapshot != null && !smokeSnapshot) {
                     smokeSnapshot = true; Log("GT_DUNGEON_SMOKE_SNAPSHOT_PASS sprites=" + Session.Snapshot.Sprites.Count);
@@ -279,7 +294,7 @@ namespace GungeonTogether.Lan
                     float distance = Vector3.Distance(smokeCultistStart, cultist.transform.position);
                     if (distance > 0.2f && !smokeMovePassed) { smokeMovePassed = true; Log("GT_DUNGEON_SMOKE_REMOTE_MOVE_PASS distance=" + distance); }
                     foreach (Projectile projectile in UnityEngine.Object.FindObjectsOfType<Projectile>())
-                        if (projectile.Owner == cultist && !smokeShotPassed) { smokeShotPassed = true; Log("GT_DUNGEON_SMOKE_REMOTE_SHOOT_PASS native projectile owned by Cultist"); }
+                        if (projectile.Owner == cultist && !smokeShotPassed) { smokeShotPassed = true; Log("GT_DUNGEON_SMOKE_REMOTE_SHOOT_PASS native projectile owned by selected guest"); }
                     if ((!smokeMovePassed || !smokeShotPassed) && Time.realtimeSinceStartup >= nextControlsDiagnostic) {
                         nextControlsDiagnostic = Time.realtimeSinceStartup + 1;
                         Log("GT_SMOKE_CONTROLS move=" + distance + " ammo=" + (cultist.CurrentGun == null ? -1 : cultist.CurrentGun.CurrentAmmo) + " activeShoot=" + Session.Controls.Actions.ShootAction.Value + " activeMove=" + Session.Controls.Actions.Move.Vector + " input=" + cultist.CurrentInputState + " override=" + cultist.IsInputOverridden + " paused=" + gm.IsPaused + " delta=" + BraveTime.DeltaTime + " packetSeq=" + Session.Controls.LastInputSequence + " packetMove=" + Session.Controls.LastMoveX + " attached=" + Session.Controls.Device.IsAttached);
@@ -298,14 +313,38 @@ namespace GungeonTogether.Lan
                 if (smokeLayout && Session != null && Session.Epoch >= 2 && Session.Phase == DungeonSession.RunPhase.Running && (smokeRole == "host" || (Session.Snapshot != null && Session.Snapshot.Epoch >= 2))) {
                     if (smokeSecondFloorAt == 0) { smokeSecondFloorAt = Time.realtimeSinceStartup; Log("GT_DUNGEON_SMOKE_SECOND_FLOOR_SNAPSHOT_READY"); }
                     if (Time.realtimeSinceStartup - smokeSecondFloorAt < 3) return;
+                    VerifySmokeCharacters(gm);
+                    if (!smokeDesktopPassed) throw new IOException("Desktop-safe window verification did not pass.");
+                    if (smokeRole == "client" && Session.InterpolatedFrames < 10) throw new IOException("Dungeon render interpolation did not execute.");
+                    if (smokeRole == "client") Log("GT_DUNGEON_INTERPOLATION_PASS renderFrames=" + Session.RenderedFrames + " interpolated=" + Session.InterpolatedFrames);
                     Log("GT_DUNGEON_SMOKE_SECOND_FLOOR_PASS");
                     Log("GT_DUNGEON_SMOKE_PASS"); smokeComplete = true; smokeDeadline = float.MaxValue;
                 }
             } catch (Exception ex) { Log("GT_DUNGEON_SMOKE_FAIL: " + ex); Application.Quit(); smokeDeadline = float.MaxValue; }
         }
 
+        private void VerifySmokeCharacters(GameManager gm)
+        {
+            if (gm.AllPlayers.Length != 2 || gm.SecondaryPlayer == null || CharacterCatalog.FromIdentity(gm.SecondaryPlayer.characterIdentity.ToString()) != Session.GuestCharacter)
+                throw new IOException("Selected guest character was not retained across generation.");
+            if (gm.PrimaryPlayer.characterIdentity != PlayableCharacters.Pilot) throw new IOException("Host character identity differs between PCs.");
+            if (gm.SecondaryPlayer.CurrentGun == null) throw new IOException("Selected guest has no starting gun.");
+            Log("GT_CHARACTER_PASS epoch=" + Session.Epoch + " identity=" + gm.SecondaryPlayer.characterIdentity + " gun=" + gm.SecondaryPlayer.CurrentGun.PickupObjectId);
+        }
+
+        private System.Collections.IEnumerator CaptureSmokeMenu()
+        {
+            hostTab = smokeRole == "host"; visible = true; smokeMenuVisible = true;
+            yield return new WaitForEndOfFrame();
+            ScreenCapture.CaptureScreenshot(Path.Combine(Paths.GameRootPath, "menu-smoke-" + smokeRole + ".png"));
+            yield return new WaitForEndOfFrame();
+            visible = false; smokeMenuVisible = false;
+            Log("GT_MENU_CAPTURED");
+        }
+
         private void OnDestroy()
         {
+            if (menuPlayer != null) menuPlayer.ClearInputOverride("GT_Menu");
             if (Session != null) Session.Dispose();
             if (transport != null) transport.Dispose();
             if (harmony != null) harmony.UnpatchSelf();

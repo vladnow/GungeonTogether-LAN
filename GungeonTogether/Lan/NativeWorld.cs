@@ -87,20 +87,46 @@ namespace GungeonTogether.Lan
             }
         }
 
-        public static PlayerController EnsureCultist()
+        public static GameObject CharacterPrefab(int character)
+        {
+            GameObject prefab = BraveResources.Load(CharacterCatalog.Prefab(character), ".prefab") as GameObject;
+            if (prefab == null || prefab.GetComponent<PlayerController>() == null) throw new IOException("Native character prefab was not found: " + CharacterCatalog.Prefab(character));
+            return prefab;
+        }
+
+        public static void PrepareClientPlayers(int host, int guest)
         {
             GameManager gm = GameManager.Instance;
-            if (gm.SecondaryPlayer != null) return gm.SecondaryPlayer;
+            GameObject prefab = CharacterPrefab(host);
+            GameManager.PlayerPrefabForNewGame = prefab;
+            PlayerController original = gm.PrimaryPlayer;
+            if (original == null || original.characterIdentity != prefab.GetComponent<PlayerController>().characterIdentity) {
+                Vector3 position = original == null ? Vector3.zero : original.transform.position;
+                PlayerController replacement = UnityEngine.Object.Instantiate(prefab, position, Quaternion.identity).GetComponent<PlayerController>();
+                replacement.PlayerIDX = 0;
+                gm.PrimaryPlayer = replacement;
+                if (original != null) { original.gameObject.SetActive(false); UnityEngine.Object.Destroy(original.gameObject); }
+            }
+            EnsureGuest(guest);
+        }
+
+        public static PlayerController EnsureGuest(int character)
+        {
+            GameManager gm = GameManager.Instance;
+            if (gm.SecondaryPlayer != null) {
+                if (CharacterCatalog.FromIdentity(gm.SecondaryPlayer.characterIdentity.ToString()) != character)
+                    throw new IOException("The native second player differs from the LAN selection. Return to the foyer and reconnect.");
+                return gm.SecondaryPlayer;
+            }
             if (gm.PrimaryPlayer == null) throw new IOException("Choose a character in the foyer first.");
-            GameObject prefab = (GameObject)BraveResources.Load("PlayerCoopCultist", ".prefab");
-            if (prefab == null) throw new IOException("Native Cultist prefab was not found.");
+            GameObject prefab = CharacterPrefab(character);
             GameManager.LastUsedCoopPlayerPrefab = prefab;
             GameManager.CoopPlayerPrefabForNewGame = prefab;
             gm.CurrentGameType = GameManager.GameType.COOP_2_PLAYER;
             GameObject go = UnityEngine.Object.Instantiate(prefab, gm.PrimaryPlayer.transform.position + new Vector3(1, 0, 0), Quaternion.identity);
             go.SetActive(true);
             PlayerController player = go.GetComponent<PlayerController>();
-            if (player == null) throw new IOException("Cultist lacks PlayerController.");
+            if (player == null) throw new IOException("Guest character lacks PlayerController.");
             player.PlayerIDX = 1; gm.SecondaryPlayer = player;
             GameUIRoot.Instance.ConvertCoreUIToCoopMode();
             return player;

@@ -36,7 +36,7 @@ internal sealed class Launcher : Form
         Width = 650; Height = 325; FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false; StartPosition = FormStartPosition.CenterScreen;
         Label intro = new Label { Left = 18, Top = 18, Width = 600, Height = 56,
-            Text = "Альфа 0.2.2: исправлен выбор сохранений при запуске через Steam.\nSteam использует обычный профиль; этот запускатор — отдельный LAN-профиль.\nЛобби → Ctrl+P → HOST / JOIN → хост нажимает START DUNGEON." };
+            Text = "Альфа 0.3.0: сглаживание движения, выбор героя и новое меню.\nSteam использует обычный профиль; этот запускатор — отдельный LAN-профиль.\nЛобби → Ctrl+P → создать / подключиться → хост начинает забег." };
         Controls.Add(intro);
         Controls.Add(new Label { Left = 18, Top = 88, Width = 600, Text = "Папка игры, в которой находится EtG.exe:" });
         gamePath = new TextBox { Left = 18, Top = 112, Width = 500 };
@@ -69,19 +69,19 @@ internal sealed class Launcher : Form
                 process.Dispose(); throw new IOException("Закройте запущенную Enter the Gungeon перед установкой/запуском.");
             }
             string plugins = Path.Combine(root, "BepInEx/plugins");
-            string target = Path.Combine(plugins, "GungeonTogetherLAN/GungeonTogether.LAN-0.2.2-alpha.dll");
+            string target = Path.Combine(plugins, "GungeonTogetherLAN/GungeonTogether.LAN-0.3.0-alpha.dll");
             List<string> upgrades = new List<string>();
             if (Directory.Exists(plugins)) {
                 foreach (string file in Directory.GetFiles(plugins, "*.dll", SearchOption.AllDirectories)) {
                     string filename = Path.GetFileName(file);
                     if (file.Equals(target, StringComparison.OrdinalIgnoreCase) && Hash(File.ReadAllBytes(file)) == Hash(ResourcePlugin())) continue;
-                    if (filename == "GungeonTogether.LAN-0.1.0-beta.dll" || filename == "GungeonTogether.LAN-0.2.0-alpha.dll" || filename == "GungeonTogether.LAN-0.2.1-alpha.dll" || filename == "GungeonTogether.LAN-0.2.2-alpha.dll") { upgrades.Add(file); continue; }
+                    if (filename == "GungeonTogether.LAN-0.1.0-beta.dll" || filename == "GungeonTogether.LAN-0.2.0-alpha.dll" || filename == "GungeonTogether.LAN-0.2.1-alpha.dll" || filename == "GungeonTogether.LAN-0.2.2-alpha.dll" || filename == "GungeonTogether.LAN-0.3.0-alpha.dll") { upgrades.Add(file); continue; }
                     if (filename.IndexOf("GungeonTogether", StringComparison.OrdinalIgnoreCase) >= 0)
                         throw new IOException("Уже установлен другой GungeonTogether:\n" + file + "\nУберите его из plugins перед установкой LAN-версии.");
                 }
             }
             if (upgrades.Count != 0) {
-                if (MessageBox.Show(this, "Найдены предыдущие LAN-DLL:\n" + string.Join("\n", upgrades.ToArray()) + "\n\nСохранить их в BepInEx/GungeonTogetherLAN/backups и установить альфу 0.2.2? Обычные сохранения игры не меняются.", "Обновление LAN-мода", MessageBoxButtons.OKCancel) != DialogResult.OK) return;
+                if (MessageBox.Show(this, "Найдены предыдущие LAN-DLL:\n" + string.Join("\n", upgrades.ToArray()) + "\n\nСохранить их в BepInEx/GungeonTogetherLAN/backups и установить альфу 0.3.0? Обычные сохранения игры не меняются.", "Обновление LAN-мода", MessageBoxButtons.OKCancel) != DialogResult.OK) return;
                 string backup = Path.Combine(root, "BepInEx/GungeonTogetherLAN/backups/" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + "-" + Guid.NewGuid().ToString("N").Substring(0, 8));
                 Directory.CreateDirectory(backup);
                 for (int i = 0; i < upgrades.Count; i++) File.Move(upgrades[i], Path.Combine(backup, i + "-" + Path.GetFileName(upgrades[i]) + ".disabled"));

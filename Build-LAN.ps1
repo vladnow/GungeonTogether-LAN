@@ -18,7 +18,7 @@ $dotnetExecutable = (Get-Command $DotnetPath -ErrorAction Stop).Source
 $compiler = Join-Path (Join-Path (Split-Path -Parent $dotnetExecutable) "sdk\$sdkVersion") 'Roslyn\bincore\csc.dll'
 $bin = Join-Path $PSScriptRoot 'bin'
 New-Item -ItemType Directory -Force -Path $bin | Out-Null
-$target = Join-Path $bin 'GungeonTogether.LAN-0.2.2-alpha.dll'
+$target = Join-Path $bin 'GungeonTogether.LAN-0.3.0-alpha.dll'
 $arguments = @('exec', $compiler, '/nologo', '/noconfig', '/nostdlib+', '/target:library', '/optimize+', '/deterministic+', '/langversion:7.3', "/out:$target")
 # Compile against the actual game's old framework/Unity assemblies, not mock types.
 foreach ($reference in Get-ChildItem -LiteralPath $gameManaged -Filter '*.dll') { $arguments += "/reference:$($reference.FullName)" }

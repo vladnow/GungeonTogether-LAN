@@ -1,22 +1,29 @@
-param([string]$OutputDirectory = (Join-Path $PSScriptRoot 'release'))
+param([string]$OutputDirectory = (Join-Path $PSScriptRoot 'release'), [switch]$DevelopmentPreview)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.Drawing
 $publication = Join-Path $PSScriptRoot 'publication'
 $manifest = Get-Content -LiteralPath (Join-Path $publication 'manifest.json') -Raw | ConvertFrom-Json
 if ($manifest.name -notmatch '^[A-Za-z0-9_]{1,128}$' -or $manifest.version_number -notmatch '^\d+\.\d+\.\d+$' -or $manifest.description.Length -gt 250) { throw 'Invalid manifest metadata.' }
-$runtime = Join-Path $PSScriptRoot 'bin\GungeonTogether.LAN-0.2.2-alpha.dll'
+$version = $manifest.version_number
+$dllName = "GungeonTogether.LAN-$version-alpha.dll"
+$runtime = Join-Path $PSScriptRoot ('bin\' + $dllName)
 $runtimeHash = (Get-FileHash -LiteralPath $runtime -Algorithm SHA256).Hash.ToLowerInvariant()
 $evidence = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'validation\summary.json') -Raw | ConvertFrom-Json
-if ($evidence.runtime_sha256 -ne $runtimeHash -or !$evidence.ready_for_alpha_review -or $evidence.dungeon_smoke_passes -lt 2) { throw 'Final build does not match completed alpha validation.' }
+if ($evidence.version -ne $version -or $evidence.runtime_sha256 -ne $runtimeHash) { throw 'Runtime does not match this version of validation evidence.' }
+if ($DevelopmentPreview) {
+ if ($evidence.automated_checks -lt 108 -or !$evidence.development_preview) { throw 'Preview background checks are incomplete.' }
+} elseif (!$evidence.ready_for_alpha_review -or $evidence.dungeon_smoke_passes -lt 2) { throw 'Native game validation is pending. Only explicit -DevelopmentPreview packaging is allowed.' }
 $image = [Drawing.Image]::FromFile((Join-Path $publication 'icon.png'))
 try { if ($image.Width -ne 256 -or $image.Height -ne 256) { throw 'Icon must be 256x256.' } } finally { $image.Dispose() }
 $out = [IO.Path]::GetFullPath($OutputDirectory)
 New-Item -ItemType Directory -Path $out -Force | Out-Null
-$packageName = 'GungeonTogether_LAN-0.2.2-Thunderstore.zip'
-$sourceName = 'GungeonTogether_LAN-source.zip'
-foreach ($name in @($packageName,$sourceName,'SHA256SUMS.txt')) { if (Test-Path -LiteralPath (Join-Path $out $name)) { throw ('Refusing to overwrite release: ' + $name) } }
-$sourceFiles = @('Build-LAN.ps1','Build-Launcher.ps1','Build-Thunderstore.ps1','Test-LAN.ps1','Test-Dungeon.ps1','Test-Profile.ps1','GungeonTogether\GungeonTogether.csproj','GungeonTogether\Networking\Players\RemotePlayerAvatar.cs','launcher\Launcher.cs','tests\LanTests.cs','tests\DungeonTests.cs','tests\ProfileTests.cs','validation\summary.json')
+$suffix = if ($DevelopmentPreview) { '-preview' } else { '' }
+$packageName = "GungeonTogether_LAN-$version$suffix-Thunderstore.zip"
+$sourceName = "GungeonTogether_LAN-$version$suffix-source.zip"
+$checksumName = "GungeonTogether_LAN-$version$suffix-SHA256SUMS.txt"
+foreach ($name in @($packageName,$sourceName,$checksumName)) { if (Test-Path -LiteralPath (Join-Path $out $name)) { throw ('Refusing to overwrite release: ' + $name) } }
+$sourceFiles = @('README.ru.md','Build-LAN.ps1','Build-Launcher.ps1','Build-Thunderstore.ps1','Test-LAN.ps1','Test-Dungeon.ps1','Test-Profile.ps1','Test-Rendering.ps1','Test-GameBindings.ps1','GungeonTogether\GungeonTogether.csproj','GungeonTogether\Networking\Players\RemotePlayerAvatar.cs','launcher\Launcher.cs','tests\LanTests.cs','tests\DungeonTests.cs','tests\ProfileTests.cs','tests\RenderingTests.cs','validation\summary.json')
 $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'GungeonTogether\Lan') -Filter '*.cs' -File | Where-Object Name -ne 'LanPlugin.cs' | ForEach-Object { 'GungeonTogether\Lan\' + $_.Name })
 function Add-Entry($zip,[string]$path,[string]$name) {
  if ($name.Contains('..') -or $name.Contains(':') -or $name.StartsWith('/')) { throw 'Unsafe ZIP entry.' }
@@ -25,20 +32,20 @@ function Add-Entry($zip,[string]$path,[string]$name) {
 $sourceZip = [IO.Compression.ZipFile]::Open((Join-Path $out $sourceName),[IO.Compression.ZipArchiveMode]::Create)
 try {
  foreach ($relative in @($sourceFiles | Sort-Object -Unique)) { Add-Entry $sourceZip (Join-Path $PSScriptRoot $relative) $relative.Replace('\','/') }
- foreach ($name in @('README.md','LICENSE','NOTICE.md','CHANGELOG.md','manifest.json','VALIDATION.md','INSTALL-PROFILES.ru.md','Build-Icon.ps1')) { Add-Entry $sourceZip (Join-Path $publication $name) ('publication/' + $name) }
+ foreach ($name in @('README.md','README.ru.md','LICENSE','NOTICE.md','CHANGELOG.md','manifest.json','VALIDATION.md','INSTALL-PROFILES.ru.md','Build-Icon.ps1','UPDATE-GITHUB.ru.md','PUBLISH-THUNDERSTORE.ru.md','RELEASE-NOTES-0.3.0.md')) { Add-Entry $sourceZip (Join-Path $publication $name) ('publication/' + $name) }
  Add-Entry $sourceZip (Join-Path $publication 'README.md') 'README.md'
  Add-Entry $sourceZip (Join-Path $publication 'LICENSE') 'LICENSE'
  Add-Entry $sourceZip (Join-Path $publication 'icon.png') 'publication/icon.png'
 } finally { $sourceZip.Dispose() }
 $zip = [IO.Compression.ZipFile]::Open((Join-Path $out $packageName),[IO.Compression.ZipArchiveMode]::Create)
 try {
- foreach ($name in @('manifest.json','README.md','icon.png','CHANGELOG.md','LICENSE','NOTICE.md','INSTALL-PROFILES.ru.md')) { Add-Entry $zip (Join-Path $publication $name) $name }
- Add-Entry $zip $runtime 'BepInEx/plugins/GungeonTogetherLAN/GungeonTogether.LAN-0.2.2-alpha.dll'
+ foreach ($name in @('manifest.json','README.md','README.ru.md','icon.png','CHANGELOG.md','LICENSE','NOTICE.md','INSTALL-PROFILES.ru.md','VALIDATION.md')) { Add-Entry $zip (Join-Path $publication $name) $name }
+ Add-Entry $zip $runtime ('BepInEx/plugins/GungeonTogetherLAN/' + $dllName)
 } finally { $zip.Dispose() }
 $hashes = @(
- ($runtimeHash + '  GungeonTogether.LAN-0.2.2-alpha.dll')
+ ($runtimeHash + '  ' + $dllName)
  ((Get-FileHash -LiteralPath (Join-Path $out $packageName) -Algorithm SHA256).Hash.ToLowerInvariant() + '  ' + $packageName)
  ((Get-FileHash -LiteralPath (Join-Path $out $sourceName) -Algorithm SHA256).Hash.ToLowerInvariant() + '  ' + $sourceName)
 )
-$hashes | Set-Content -LiteralPath (Join-Path $out 'SHA256SUMS.txt') -Encoding ascii
+$hashes | Set-Content -LiteralPath (Join-Path $out $checksumName) -Encoding ascii
 Get-Item -LiteralPath (Join-Path $out $packageName),(Join-Path $out $sourceName) | Select-Object Name,Length

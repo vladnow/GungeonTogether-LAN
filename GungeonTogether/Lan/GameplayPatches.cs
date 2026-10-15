@@ -13,6 +13,92 @@ namespace GungeonTogether.Lan
         private static DungeonSession Session { get { return DungeonPlugin.Instance == null ? null : DungeonPlugin.Instance.Session; } }
         private static bool Smoke { get { return DungeonPlugin.Instance != null && DungeonPlugin.Instance.IsSmoke; } }
 
+        [HarmonyPatch(typeof(GameManager), "LoadResolutionFromOptions")]
+        private static class SmokeResolution
+        {
+            private static bool Prefix()
+            {
+                if (!Smoke) return true;
+                Screen.SetResolution(800, 600, false); return false;
+            }
+        }
+
+        [HarmonyPatch(typeof(GameManager), "DoSetResolution")]
+        private static class SmokeResolutionChanges
+        {
+            private static void Prefix(ref int __0, ref int __1, ref bool __2)
+            { if (Smoke) { __0 = 800; __1 = 600; __2 = false; } }
+        }
+
+        [HarmonyPatch(typeof(GameManager), "OnApplicationFocus")]
+        private static class SmokeBackground
+        {
+            private static bool Prefix(GameManager __instance)
+            {
+                if (!Smoke) return true;
+                AccessTools.Field(typeof(GameManager), "m_applicationHasFocus").SetValue(__instance, true); return false;
+            }
+        }
+
+        [HarmonyPatch]
+        private static class SmokeCursor
+        {
+            private static IEnumerable<MethodBase> TargetMethods()
+            {
+                foreach (string name in new string[] { "Start", "DrawCursor", "ToggleClip", "OnDestroy" })
+                    yield return AccessTools.Method(typeof(GameCursorController), name);
+            }
+            private static bool Prefix()
+            {
+                if (!Smoke) return true;
+                Cursor.lockState = CursorLockMode.None; Cursor.visible = true; return false;
+            }
+        }
+
+        // The native getter always returns Cultist, ignoring its backing field.
+        // Scope the replacement to this session so floor loads keep the selection.
+        [HarmonyPatch(typeof(GameManager), "get_CoopPlayerPrefabForNewGame")]
+        private static class GuestPrefab
+        {
+            private static bool Prefix(ref GameObject __result)
+            {
+                DungeonSession session = Session;
+                if (session == null || !session.InRun) return true;
+                __result = NativeWorld.CharacterPrefab(session.GuestCharacter); return false;
+            }
+        }
+
+        [HarmonyPatch(typeof(GameManager), "get_SecondaryPlayer")]
+        private static class GuestController
+        {
+            private static bool Prefix(GameManager __instance, ref PlayerController __result)
+            {
+                DungeonSession session = Session;
+                if (session == null || !session.InRun || __instance.CurrentGameType != GameManager.GameType.COOP_2_PLAYER) return true;
+                // The native fallback searches specifically for Cultist. Identify
+                // player two by controller index when caches reset on a new floor.
+                foreach (PlayerController player in __instance.AllPlayers) {
+                    if (player != null && player.PlayerIDX == 1) {
+                        __instance.SecondaryPlayer = player; __result = player; return false;
+                    }
+                }
+                __result = null; return false;
+            }
+        }
+
+        [HarmonyPatch(typeof(GameManager), "FrameDelayedEnteredFoyer")]
+        private static class DepartedFoyer
+        {
+            private static bool Prefix()
+            {
+                DungeonSession session = Session;
+                // Players created while leaving the foyer can start one frame
+                // after its objects have unloaded. Do not queue foyer callbacks
+                // for controllers that are already entering the network dungeon.
+                return session == null || !session.InRun || GameManager.Instance.IsFoyer;
+            }
+        }
+
         [HarmonyPatch]
         private static class ClientActorTicks
         {

@@ -1,39 +1,56 @@
-# Validation of 0.2.2 alpha
+# Validation of 0.3.0 alpha
 
-Date: 2026-10-14. This is a local alpha candidate, not a public-release or full-gameplay certification.
+Date: 2026-10-15. Local alpha validation; this does not establish a full campaign or physical-PC/Radmin playthrough.
 
-Runtime SHA-256: `c8ca24150a1f4f6fea36d3277f014d55a7d3d41682301f6d77a8caccec60d494`.
+**Known blocker: initial seed 299027071 reproduces a fourth-floor layout mismatch. The host/client run stops at the geometry barrier. This alpha is suitable for early-floor testing, not a verified full run. Fifth-floor testing was not reached.**
 
-## Build and automated checks
+Runtime SHA-256: `c760078ddd8d271dc28194fed54ae9f2771eced45001ac240d428324409a9d99`.
 
-- Compiled the actual source against Steam Enter the Gungeon 2.1.9 (build 3829397), Unity 2017.4.27.805765 and BepInEx 5.4.21 / Pack EtG 5.4.2101. No game-type stubs were used.
-- Rebuilt the final DLL after native testing; its SHA-256 remained identical. No compiler warnings or errors appeared.
-- LAN transport: 27 checks, including actual loopback sockets.
-- Dungeon protocol: 23 checks.
-- Save-profile selection: 19 checks, including external manager paths, Normal priority, legacy arguments and smoke isolation.
-- Native profile fixture tests confirmed normal direct launches choose NORMAL and an external BepInEx manager-style launch chooses LAN without `--gt-lan-profile`. Both loaded a private copied save fixture successfully. Subsequent loads/writes were redirected to fixtures. Six live user save/backup/options files were unchanged during these profile tests.
+## Build and background checks
 
-## Native two-process smoke runs
+- Compiled against actual Steam Enter the Gungeon 2.1.9 / Unity 2017.4.27 / BepInEx 5.4.21 libraries, without game stubs. No compiler warnings or errors.
+- 108 automated checks: 28 real-loopback LAN transport, 23 dungeon protocol, 19 save-profile and 38 interpolation/character checks.
+- 15 direct Harmony targets resolve uniquely to managed methods in the installed game assemblies.
+- Interpolation tests cover 60/144 FPS, batched delivery, independent clocks, stale packets, sequence wraparound and stalls. A 100 ms buffer failed the tested jitter scenario; the final 120 ms buffer passed.
+- Launcher file-fixture checks passed and its embedded DLL hash matches the runtime above. These do not replace testing a complete fresh installation from the launcher.
 
-The exact DLL above ran in separate game copies over 127.0.0.1, using separate external BepInEx roots like a manager profile. Both processes used `-nosound`; the diagnostic mode also disables Unity/Wwise playback. The original installed game was not used as the test process.
+## Native two-process tests
 
-Two final runs passed with different first- and second-floor layouts:
+The exact DLL above passed five separate silent, windowed tests in private game copies. Each used two local processes and external BepInEx roots. The game confirmed fullscreen=false, 800x600, cursor=None, background execution and a nonforeground diagnostic window. No Computer Use interaction was used for this final series.
 
-| Run | First-floor hash | Second-floor hash |
+Every guest character passed: different foyer avatars and remote movement rendering, matching first/second-floor geometry, native player-two identity and starting gun on both floors, remote movement, native projectile ownership, damage to an AI-disabled Bullet Kin, client sprite interpolation and a forced native LoadCustomLevel("tt5") transition. The host's first player was Pilot; the client's original foyer hero was Hunter. The client placeholders were aligned with the host's character for generation.
+
+| Guest | First-floor hash | Second-floor hash | Native exceptions |
+| --- | --- | --- | --- |
+| cultist | `93d0210570c3129b0a44e01a4c0ffe6d3d97c2b9b82eb973c9affb083cf13775` | `c60821a189b648f703e3da52752f95a1b590fe72107bd1438720d17910a1107f` | 0 |
+| pilot | `963e95f3a1b37a48c1b56b09fe0cf1957ba2fed4af618ccaf4bd8c475ab60d14` | `279dd8916da5f7bc9384c14fc4b3fbdd78a0e1694be666ec2ac3450370df1604` | 0 |
+| marine | `b344f5bca8ab3e46aaeb24bdaec264998ac1f32a65f7314d5bee22dce95f2356` | `934bbf9ba697b249e5f4c049e1306abe1944a719b0ef9684a6619b1742db4c7b` | 0 |
+| convict | `2169c6231258022a36b0cb5520717b34fa8ba457cd6106ae5d07198d36792472` | `392febd3eca7de5e5ee12f91a94a23cf8a035e2b6254fcc8267845c1d8618c99` | 0 |
+| hunter | `c6daecc5a0f415fe3aee56f3f71b2594c8aea429170e44238ef537b3c5d9b12e` | `97ec2b9f5256798cf2286ce387bf05aa0e701193e67b7b4401bb5a25f1028187` | 0 |
+
+An additional two-process run with Hunter continued past the second floor. A private diagnostic driver used the game's actual next-floor definitions and LoadCustomLevel, without modifying the runtime DLL. The third floor passed an identical layout hash, two native players, retained guest identity/gun and current-floor snapshots on the client:
+
+| Main floor | Scene | Matching host/client hash |
 | --- | --- | --- |
-| 1 | `82e80139e835b28d1e292afff4fdb4b2192c960cb7e51b5d19e6d18fe93d4d2e` | `4fb8c53d7d8390328c131874c09a0ab72652c70de1bb0ad4e66392f408009b59` |
-| 2 | `705db4aa221d76c5d4b6924850d9790db00e06ceda395037372ffaefe0971ad0` | `bfe3565313a57d8d471cfe384118821257327efb9476945e990dd7a20c1d6f36` |
+| 3 | `tt_mines` | `35888b0ab6bbb23df710de80a29ee0f1d045ffe612122e50bd0d273489bd958e` |
 
-For each run the host and client reported identical geometry, Running state, client sprite snapshots, and the final PASS marker. The host observed Cultist movement, a native projectile owned by the Cultist, and damage to a native Bullet Kin. The client received a second-floor snapshot after the epoch transition.
+The fourth floor then failed the geometry check. Rooms differed despite matching initial generation context and the same selected native flow. Attempts to isolate the deferred layout random stream did not resolve the mismatch and were removed from this release. Its cause remains unresolved. These checks do not clear every room or prove all interactions are synchronized.
 
-The enemy's behavior AI was disabled. The transition was forced through native `LoadCustomLevel("tt5")`, not through a completed boss/elevator. Native player LateUpdate and delayed-foyer initialization exceptions occurred before dungeon readiness. These failures were not erased; limited smoke assertions passing does not establish clean foyer/UI initialization or all gameplay behavior.
+Menu screenshots were saved by the game and inspected locally. They establish actual rendering at the tested resolution; keyboard/controller navigation, every resolution and live two-PC interactions are not comprehensively tested.
 
-Earlier candidate DLLs failed second-floor geometry checks. The final source now transfers current-session statistics and the persistent ForceEarlyChest flag and preserves players until native seed setup finishes. Only the final hash and the two runs above count as this candidate's native evidence.
+The earlier failing Pilot seed 299027071 was reproduced. Rooms and prerequisites matched while procedural corridor cell types differed. The native RobotDave generator uses global random state during room application, which yields between rooms. The final fix scopes Unity and generation random state per room using floor seed and coordinates, then restores the surrounding state. The same formerly failing seed passed in the final Pilot case. Geometry checks remain enabled. An experimental room-list sort did not fix the failure and was removed.
 
-## Limits and publication status
+Six normal save/backup/options files retained their pre-test SHA-256 values. All game-test writes used private copied game/save directories. Save-profile policy for ordinary play was not changed by these features.
 
-Two physical PCs, real Radmin latency/loss, active enemy fights, every boss/item, full campaigns, real boss transitions, secret-wall tile changes, beam geometry, client combat audio, shop/dialogue UI, active-run reconnection and other modpacks remain unverified or incomplete. Windows is the only validated platform. This candidate should be offered as an experimental alpha with a dedicated mod profile.
+## Remaining limits
 
-The Thunderstore ZIP is prepared locally. Account/team validation, real manager ZIP import/launch, moderation and public availability are separate steps and have not been established. Game/BepInEx assemblies, saves, raw private logs, executable installers and development/test files are excluded from the runtime package. MIT attribution is preserved; source is supplied separately.
+- A fourth-floor geometry mismatch is a known blocker. The fifth floor was not reached; no full-run readiness is claimed.
+- The test enemy AI was disabled; later floors were loaded by native commands. These are bounded smoke tests, not a live co-op playthrough, clearing every room or a boss/elevator test.
+- Two physical PCs/Radmin, sustained packet loss, long runs, all abilities/items, revival, every boss, special endings and modpacks remain unverified.
+- Client combat audio, some materials/effects, beams, secret-wall tile changes, shop/dialogue UI and active-run reconnection remain incomplete.
+- A 120 ms interpolation delay improves presentation but adds latency. There is no client prediction; long stalls and native co-op distance limits can still cause corrections.
+- Native base-game warnings remain in raw logs. Do not interpret a passed smoke marker as proof that every logged warning is resolved.
+- A separate final-build Pilot attempt ended with an unexpected process exit; its logs also showed connection refusals. The failed attempt was retained privately and rerun; its cause is unresolved. A successful retry does not establish startup stability.
+- ZIP import through the actual mod-manager UI and a fresh manual launcher installation were not performed in this series. Archives and embedded runtime are verified separately.
 
-All owned game processes were stopped. The user subsequently required that future graphical tests also permit free use of both monitors; the old launcher did not satisfy that condition. Further graphical launches are disabled by default pending a nonblocking harness. No additional game runs were made after this request.
+Private raw logs, game screenshots, game assets and game/BepInEx assemblies are excluded from distributable packages. MIT attribution is preserved. No public upload was made by this validation step.
