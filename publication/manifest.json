@@ -1,0 +1,9 @@
+{
+  "name": "GungeonTogether_LAN",
+  "version_number": "0.2.2",
+  "website_url": "",
+  "description": "Experimental two-player LAN/IP co-op. Host runs native combat; client controls Cultist. Local rendering, separate LAN saves. Use a dedicated profile and Radmin VPN or LAN.",
+  "dependencies": [
+    "BepInEx-BepInExPack_EtG-5.4.2101"
+  ]
+}

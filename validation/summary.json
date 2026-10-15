@@ -1,0 +1,22 @@
+{
+  "version": "0.2.2",
+  "date": "2026-10-14",
+  "runtime_sha256": "c8ca24150a1f4f6fea36d3277f014d55a7d3d41682301f6d77a8caccec60d494",
+  "ready_for_alpha_review": true,
+  "dungeon_smoke_passes": 2,
+  "automated_checks": 69,
+  "lan_checks": 27,
+  "dungeon_protocol_checks": 23,
+  "profile_checks": 19,
+  "native_normal_profile": "PASS",
+  "native_manager_auto_profile": "PASS",
+  "native_fixture_save_load": "PASS",
+  "user_save_files_unchanged_during_profile_tests": 6,
+  "physical_pcs_radmin_tested": false,
+  "full_campaign_tested": false,
+  "real_manager_zip_import_tested": false,
+  "publicly_uploaded": false,
+  "test_audio": "disabled",
+  "future_graphical_launches": "blocked until nonblocking desktop access is established",
+  "native_foyer_initialization_exceptions": true
+}

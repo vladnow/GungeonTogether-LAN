@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net35</TargetFramework>
+    <AssemblyName>GungeonTogether.LAN-0.2.2-alpha</AssemblyName>
+    <Version>0.2.2</Version>
+    <LangVersion>7.3</LangVersion>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AutomaticallyUseReferenceAssemblyPackages>false</AutomaticallyUseReferenceAssemblyPackages>
+    <FrameworkPathOverride>$(GamePath)\EtG_Data\Managed</FrameworkPathOverride>
+    <OutputPath>..\bin\sdk\</OutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Lan\*.cs" Exclude="Lan\LanPlugin.cs" />
+    <Compile Include="Networking\Players\RemotePlayerAvatar.cs" />
+    <Reference Include="$(GamePath)\EtG_Data\Managed\*.dll"><Private>false</Private></Reference>
+    <Reference Include="BepInEx"><HintPath>$(BepInExCorePath)\BepInEx.dll</HintPath><Private>false</Private></Reference>
+  <Reference Include="0Harmony"><HintPath>$(BepInExCorePath)\0Harmony.dll</HintPath><Private>false</Private></Reference></ItemGroup>
+  <Target Name="CheckLocalReferences" BeforeTargets="ResolveReferences">
+    <Error Condition="!Exists('$(GamePath)\EtG_Data\Managed\Assembly-CSharp.dll')" Text="Set GamePath to your Enter the Gungeon install; or use ../Build-LAN.ps1." />
+    <Error Condition="!Exists('$(BepInExCorePath)\BepInEx.dll')" Text="Set BepInExCorePath to BepInEx 5 core; or use ../Build-LAN.ps1." />
+  </Target>
+</Project>
+
