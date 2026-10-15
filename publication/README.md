@@ -1,48 +1,97 @@
-# Gungeon Together LAN — experimental alpha
+# Gungeon Together LAN
 
-Two-player cooperation over a trusted LAN or Radmin VPN, with Host / Join by IPv4. The host runs Enter the Gungeon's native two-player simulation. The client controls the native Cultist and renders replicated sprites using its own game resources. The camera is shared. No video streaming or separate server is used.
+[Русская инструкция](https://github.com/vladnow/GungeonTogether-LAN/blob/main/README.ru.md)
 
-**Early alpha. Full campaigns, every boss/item, additional modpacks and poor network conditions have not been validated.** Client combat audio, some effects/materials/beam geometry, shop/dialogue interfaces and secret-wall tile changes remain incomplete. This is a test build with partial visual replication, not a promise of complete multiplayer compatibility.
+Experimental **two-player co-op for Enter the Gungeon** over a local network or Radmin VPN. Connect through **Host / Join by IPv4**. The host runs the game's native co-op simulation; the client controls the Cultist and renders replicated objects with local game resources. Both players share the host's camera view.
 
-## Install in a dedicated profile
+**Version 0.2.2 is an early alpha.** Full campaigns, every boss/item and additional modpacks have not been validated. Client visuals, sound and some interactions remain incomplete.
 
-1. Create a fresh Enter the Gungeon profile named `LAN` in Thunderstore Mod Manager or r2modman.
-2. Install this package and its BepInExPack EtG dependency.
-3. Both players use version **0.2.2**, matching game files, and initially only this mod.
-4. Use the manager's **Start Modded** button. LAN mode is enabled automatically when the selected BepInEx root belongs to a separate manager profile. No custom launch argument or external EXE is needed for that installation.
-5. Choose a character in the foyer. Press **Ctrl+P**. The host chooses **HOST**; the client enters the host's Radmin IPv4 and the same port/session code, then chooses **JOIN BY IP**.
-6. The host presses **START SYNCHRONIZED DUNGEON**. The client loads automatically. Control starts after matching dungeon geometry has been verified.
+## Requirements
 
-The default TCP port is **27631**. Radmin VPN must be installed and connected separately when used. Use an appropriate firewall exception for the game/port. The mod does not encrypt its TCP protocol separately from the VPN.
+- Two Windows PCs with matching game files and the same mod version. The tested game version is Steam **2.1.9**.
+- **BepInExPack EtG 5.4.2101** / BepInEx 5.
+- A shared LAN or connected Radmin VPN network. Radmin VPN is installed separately.
+- Start with this mod and its loader only. Other mod combinations are unverified.
 
-## Keep Steam three-player mods separate
+## Installation
 
-Create a different profile for Rec's `GungeonTogether_3Player`. Do not install the Steam GungeonTogether plugin or legacy LAN DLLs in this LAN profile. The LAN plugin declares them incompatible to prevent two networking implementations from loading together.
+Packaged builds are listed under [Releases](https://github.com/vladnow/GungeonTogether-LAN/releases). GitHub's **Code → Download ZIP** contains source code, not an installer.
 
-Switch profiles and use Start Modded to switch modes; reinstalling the game is unnecessary. A profile export from a published installation can share package versions. Manually imported local builds still need to be sent separately until publication.
+### Mod-manager ZIP
+
+1. Create a clean Enter the Gungeon profile in Thunderstore Mod Manager or r2modman.
+2. Install **BepInExPack EtG 5.4.2101** in that profile.
+3. Import the `GungeonTogether_LAN-0.2.2-Thunderstore.zip` release through **Settings → Import local mod**, or install the package from the manager's catalogue when available.
+4. Remove older LAN DLLs and other GungeonTogether plugins from the same profile before updating. Keep backups outside `BepInEx/plugins`.
+5. Launch with **Start Modded**. LAN mode is selected automatically when loaded from a separate manager profile.
+
+Local imports may require dependencies to be installed separately. Both players must install the same build.
+
+### Windows launcher ZIP
+
+For a release that includes `GungeonTogether-LAN.exe`:
+
+1. Extract the Windows archive into a separate folder.
+2. Close the game, start Steam and open `GungeonTogether-LAN.exe` from that folder.
+3. Select the game folder containing `EtG.exe`, then use the install/launch button.
+4. The launcher can back up recognized older LAN DLLs and install its embedded version. If BepInEx is missing, it downloads the official loader package and verifies its checksum; the first installation needs internet access.
+5. Use the launcher for subsequent manual LAN launches. Update the launcher when updating the mod: its embedded version is fixed.
+
+The launcher installs into the game folder and does not update manager profiles.
+
+## Connecting
+
+1. Both players launch the mod, enter the foyer and choose a character.
+2. Press **Ctrl+P** to open the LAN menu.
+3. The host selects **HOST**.
+4. The client enters the host's LAN/Radmin IPv4, uses the same **TCP port** and **Session code**, then selects **JOIN BY IP**.
+5. Once connected, the host selects **START SYNCHRONIZED DUNGEON**. The client loads automatically and controls the Cultist after the dungeon layout check succeeds.
+
+The default TCP port is **27631**. Allow the game through the firewall on the intended network. Use a trusted LAN or VPN: the mod does not add encryption to its TCP connection.
+
+## Controls
+
+The client uses the usual movement, aim, fire, roll, reload, interact, blank and weapon-switch controls. The host controls pause, map and shared menus. **Ctrl+P** reopens the connection menu.
 
 ## Saves
 
-LAN mode uses **`<game folder>/BepInEx/GungeonTogetherLAN/dungeon-profile`**, separate from the normal Windows game profile. Normal progress is not imported into LAN, so existing normal unlocks/currency may be absent there. This LAN directory is shared by installations using the same game folder; manager profiles separate mods/configs, not automatically all game saves.
+LAN progress is stored separately from normal progress in:
 
-Direct Steam launches from the game's ordinary BepInEx folder keep normal saves by default and disable LAN connections. Version 0.2.0 incorrectly selected the LAN profile for every launch; that behavior was fixed in 0.2.1 and remains fixed here.
+`<game folder>/BepInEx/GungeonTogetherLAN/dungeon-profile`
 
-The client temporarily receives the host's LAN generation history/flags to generate the same rooms. System hash and mid-game GUID are scrubbed from that context. Normal disconnect restores the client's previous in-memory LAN context; crash recovery is not guaranteed. Back up normal saves and this LAN directory before manually removing whole game folders.
+Normal unlocks and currency are not imported automatically. Manager profiles using the same game folder share this LAN save directory; separate mod profiles do not automatically create separate game saves.
 
-Advanced setting: `Profile / SaveProfileMode` in `com.gungeontogether.lan.cfg`. `Auto` is the default; `Normal` disables LAN and retains normal saves; `LAN` explicitly selects LAN saves. The legacy `--gt-lan-profile` argument remains supported for direct manual installations. The configuration is read at startup.
+With the default configuration, direct Steam launches use normal saves and disable LAN connections. The manual launcher selects LAN saves explicitly. Back up normal saves and the LAN directory before changing installations.
 
-## Controls and limitations
+The client temporarily uses the host's generation state to create matching rooms. Normal disconnect restores the client's previous in-memory context; crash recovery is not guaranteed.
 
-The client uses its usual movement, aim, fire, roll, reload, interact, blank and weapon-switch controls. Pause/map/common menus are controlled by the host. Input is sent up to 60 Hz; full sprite states up to 10 Hz. TCP loss/retransmission can delay fresh states. A disconnected dungeon run is paused; return to the foyer and start again. Active-run reconnect and host migration are not implemented.
+Advanced setting: **Profile / SaveProfileMode** in `com.gungeontogether.lan.cfg`. `Auto` selects the profile from the launch method, `Normal` disables LAN, and `LAN` explicitly selects LAN saves. Restart after changing it. The `--gt-lan-profile` argument remains available for manual launches.
+
+## Compatibility and known limitations
+
+- Other Steam GungeonTogether variants and older LAN plugins are incompatible in the same installation/profile. Use separate profiles for other networking mods.
+- Client combat audio, some effects/materials, beam geometry, shop/dialogue interfaces and secret-wall tile changes are incomplete.
+- TCP retransmission can delay state updates on poor connections.
+- A disconnected dungeon run is paused. Return to the foyer and start a new session; active-run reconnection and host migration are not implemented.
+- Native player/foyer initialization errors have occurred during diagnostic runs.
+- Two physical PCs over Radmin, full campaigns, all bosses/items, normal boss-to-floor transitions and third-party modpacks remain unverified.
 
 ## Validation
 
-Tested on Windows against Steam Enter the Gungeon 2.1.9 and BepInExPack EtG 5.4.2101. The final DLL passed 69 automated transport/protocol/profile checks, native normal/LAN save-path and fixture-load checks, and two two-process loopback smoke runs with different room layouts. Both runs checked first-floor layout agreement, client sprite snapshots, native Cultist movement/fire/damage and a forced transition to a matching second floor.
+The 0.2.2 runtime passed **69 automated transport, protocol and profile checks** and **two local two-process dungeon smoke runs**. These checked matching first/second-floor layouts, client snapshots, native Cultist movement, firing and damage. Normal/LAN save-path selection was checked with copied save fixtures.
 
-The test enemy had AI disabled and the floor change used a native level-loading command. Boss completion, elevators, active enemy fights and a whole campaign were not established. Some native player/UI initialization exceptions also appear in the test logs; this is not a clean full-gameplay certification. Local two-process tests are not equivalent to two physical PCs over Radmin. Report issues with both participants' BepInEx logs and the last action before the problem; remove private identifiers before sharing logs publicly.
+The smoke enemy had AI disabled and the next floor was loaded with a native level command. These results do not establish a complete multiplayer playthrough. See [VALIDATION.md](https://github.com/vladnow/GungeonTogether-LAN/blob/main/publication/VALIDATION.md) for detailed evidence.
 
-## Credits and source
+## Reporting problems
 
-Independent LAN fork based on [lam and contributors' GungeonTogether](https://github.com/llamerrr/GungeonTogether), commit `52be4b636a07f28483ae4e17b16ad471065e89ce`. Original MIT copyright notice is preserved. LAN changes are released under the same MIT license. This package is not the Steam three-player fork and is not an official game update.
+Open an [issue](https://github.com/vladnow/GungeonTogether-LAN/issues) with the game/mod versions, installation method, last action before the problem and logs from both players. Remove private identifiers before publishing logs.
 
-The corresponding source/build scripts are supplied separately as `GungeonTogether_LAN-source.zip` with this prerelease handoff. To build from source, run `Build-LAN.ps1` with your own game and BepInEx reference paths and an installed .NET SDK; the resulting runtime goes into `bin`. Game assemblies and BepInEx binaries are not redistributed. The code was developed with AI assistance; use the **AI Generated** category when listing this package.
+## Source and license
+
+Source: [vladnow/GungeonTogether-LAN](https://github.com/vladnow/GungeonTogether-LAN).
+
+Based on [GungeonTogether by lam and contributors](https://github.com/llamerrr/GungeonTogether), commit `52be4b636a07f28483ae4e17b16ad471065e89ce`. **Copyright (c) 2025 lam.** The original MIT license notice is preserved; LAN changes are distributed under the same MIT license. This is an unofficial fork.
+
+Building requires a .NET SDK and local game/BepInEx reference assemblies. Run `Build-LAN.ps1` with `GamePath` and `BepInExCorePath` pointing to those installations. `Build-Launcher.ps1` builds the optional Windows launcher after the DLL has been built. Game assemblies, assets and BepInEx binaries are not redistributed in this package.
+
+Developed with AI assistance.
