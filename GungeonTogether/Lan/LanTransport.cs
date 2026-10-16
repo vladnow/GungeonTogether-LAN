@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -14,11 +15,16 @@ namespace GungeonTogether.Lan
         public const int Protocol = 1;
         public const int MaxFrame = 524288;
         private const int MaxQueuedBytes = 2097152;
-        private const string Magic = "GungeonTogether-LAN-dungeon-0.3.0";
+        private const int CompressedFrame = 0x40000000;
+        private const string Magic = "GungeonTogether-LAN-dungeon-0.3.2";
         private Socket listener, peer;
         private IAsyncResult connecting;
-        private readonly List<byte> incoming = new List<byte>();
-        private readonly Queue<byte[]> outgoing = new Queue<byte[]>();
+        private byte[] incoming = new byte[65536];
+        private readonly byte[] readBuffer = new byte[16384];
+        private int readStart, readEnd;
+        private sealed class Outbound { public byte[] Frame; public int Key; public double EnqueuedAt; }
+        private readonly LinkedList<Outbound> outgoing = new LinkedList<Outbound>();
+        private readonly Dictionary<int, LinkedListNode<Outbound>> latest = new Dictionary<int, LinkedListNode<Outbound>>();
         private int offset, queued;
         private string code, fingerprint;
         private double started, received, sent;
@@ -28,6 +34,16 @@ namespace GungeonTogether.Lan
         public bool Active { get { return listener != null || peer != null; } }
         public int BoundPort { get; private set; }
         public string Status { get; private set; }
+        public int PendingBytes { get { return Math.Max(0, queued - offset); } }
+        public int PendingFrames { get { return outgoing.Count; } }
+        public long ReplacedFrames { get; private set; }
+        public long WireBytesSent { get; private set; }
+        public long PayloadBytesQueued { get; private set; }
+        public double OldestPendingMilliseconds { get { return outgoing.Count == 0 ? 0 : Math.Max(0, (clock() - outgoing.First.Value.EnqueuedAt) * 1000); } }
+        public double RoundTripMilliseconds { get; private set; }
+        public double InactivityTimeout = 30;
+        private double nextPing, pingStarted;
+        private uint pingSequence, waitingPing;
         public event Action<byte[]> PacketReceived;
         public event Action ConnectedEvent;
         public event Action DisconnectedEvent;
@@ -85,6 +101,8 @@ namespace GungeonTogether.Lan
         {
             peer.Blocking = false;
             peer.NoDelay = true;
+            // Bound kernel-side stale state as well as our application queue.
+            peer.SendBufferSize = 16384;
             started = received = sent = clock();
             using (MemoryStream stream = new MemoryStream())
             using (BinaryWriter writer = new BinaryWriter(stream)) {
@@ -103,15 +121,41 @@ namespace GungeonTogether.Lan
             Enqueue(data);
         }
 
-        private void Enqueue(byte[] data)
+        // Full snapshots are replaceable state. Reliable scene/asset messages
+        // retain their order; a frame already partially written is immutable.
+        public void SendLatest(byte[] data)
         {
-            if (queued + data.Length + 4 > MaxQueuedBytes) throw new IOException("Peer is too slow; queue limit reached.");
-            byte[] frame = new byte[data.Length + 4];
+            if (!Connected) return;
+            if (data == null || data.Length == 0 || data.Length > MaxFrame) throw new ArgumentException("Invalid packet length.");
+            Enqueue(data, data[0] + 1, true);
+        }
+
+        private void Enqueue(byte[] data, int key = 0, bool compress = false)
+        {
+            byte[] payload = data;
+            bool compressed = false;
+            if (compress && data.Length >= 1024) {
+                using (MemoryStream stream = new MemoryStream()) {
+                    using (DeflateStream zipper = new DeflateStream(stream, CompressionMode.Compress, true)) zipper.Write(data, 0, data.Length);
+                    if (stream.Length + 16 < data.Length) { payload = stream.ToArray(); compressed = true; }
+                }
+            }
+            LinkedListNode<Outbound> previous;
+            if (key != 0 && latest.TryGetValue(key, out previous)) {
+                if (previous != outgoing.First || offset == 0) {
+                    queued -= previous.Value.Frame.Length; outgoing.Remove(previous); ReplacedFrames++;
+                }
+                latest.Remove(key);
+            }
+            if (queued + payload.Length + 4 > MaxQueuedBytes) throw new IOException("Peer is too slow; queue limit reached.");
+            byte[] frame = new byte[payload.Length + 4];
             // Explicit little endian framing, independent of CPU endianness.
-            int length = data.Length;
+            int length = payload.Length | (compressed ? CompressedFrame : 0);
             for (int i = 0; i < 4; i++) frame[i] = (byte)(length >> (8 * i));
-            Buffer.BlockCopy(data, 0, frame, 4, data.Length);
-            outgoing.Enqueue(frame); queued += frame.Length;
+            Buffer.BlockCopy(payload, 0, frame, 4, payload.Length);
+            LinkedListNode<Outbound> node = outgoing.AddLast(new Outbound { Frame = frame, Key = key, EnqueuedAt = clock() });
+            if (key != 0) latest[key] = node;
+            queued += frame.Length; PayloadBytesQueued += data.Length;
         }
 
         public void Poll()
@@ -129,7 +173,14 @@ namespace GungeonTogether.Lan
                     peer.EndConnect(connecting); connecting = null; BeginHandshake();
                 }
                 if (!Connected && clock() - started > 10) throw new IOException("Handshake timed out.");
-                if (Connected && clock() - received > 15) throw new IOException("Friend stopped responding.");
+                if (Connected && clock() - received > InactivityTimeout) throw new IOException("Friend stopped responding.");
+                if (Connected && clock() >= nextPing) {
+                    nextPing = clock() + 1;
+                    if (waitingPing == 0) {
+                        waitingPing = ++pingSequence; if (waitingPing == 0) waitingPing = ++pingSequence;
+                        pingStarted = clock(); Enqueue(Ping(1, waitingPing));
+                    }
+                }
                 if (Connected && clock() - sent > 2 && outgoing.Count == 0) Enqueue(new byte[0]);
                 Flush();
                 Read();
@@ -146,34 +197,85 @@ namespace GungeonTogether.Lan
         {
             for (int budget = 0; budget < 64 && outgoing.Count != 0; budget++) {
                 if (!peer.Poll(0, SelectMode.SelectWrite)) return;
-                byte[] frame = outgoing.Peek();
+                LinkedListNode<Outbound> first = outgoing.First;
+                byte[] frame = first.Value.Frame;
                 int count = peer.Send(frame, offset, frame.Length - offset, SocketFlags.None);
                 if (count == 0) throw new IOException("Socket closed while sending.");
-                offset += count; sent = clock();
-                if (offset == frame.Length) { queued -= frame.Length; outgoing.Dequeue(); offset = 0; }
+                offset += count; WireBytesSent += count; sent = clock();
+                if (offset == frame.Length) {
+                    LinkedListNode<Outbound> mapped;
+                    if (first.Value.Key != 0 && latest.TryGetValue(first.Value.Key, out mapped) && mapped == first) latest.Remove(first.Value.Key);
+                    queued -= frame.Length; outgoing.RemoveFirst(); offset = 0;
+                }
             }
+        }
+
+        public void FlushPending()
+        {
+            if (peer == null || connecting != null) return;
+            try { Flush(); }
+            catch (Exception ex) { if (!(ex is SocketException) || !IsWouldBlock((SocketException)ex)) Drop("Disconnected: " + ex.Message); }
+        }
+
+        private static byte[] Ping(byte kind, uint sequence)
+        {
+            byte[] data = new byte[6]; data[0] = 0; data[1] = kind;
+            for (int i = 0; i < 4; i++) data[i + 2] = (byte)(sequence >> (8 * i));
+            return data;
+        }
+
+        private bool HandlePing(byte[] data)
+        {
+            if (data.Length != 6 || data[0] != 0 || (data[1] != 1 && data[1] != 2)) return false;
+            uint sequence = (uint)(data[2] | data[3] << 8 | data[4] << 16 | data[5] << 24);
+            if (data[1] == 1) Enqueue(Ping(2, sequence));
+            else if (waitingPing != 0 && sequence == waitingPing) {
+                RoundTripMilliseconds = Math.Max(0, (clock() - pingStarted) * 1000); waitingPing = 0;
+            }
+            return true;
         }
 
         private void Read()
         {
             // Bound both bytes and packets per frame to keep the game responsive.
             for (int n = 0; n < 16 && peer != null && peer.Poll(0, SelectMode.SelectRead); n++) {
-                byte[] buffer = new byte[16384];
-                int count = peer.Receive(buffer);
+                int count = peer.Receive(readBuffer);
                 if (count == 0) throw new IOException("Friend closed the connection.");
-                for (int i = 0; i < count; i++) incoming.Add(buffer[i]);
-                if (incoming.Count > 2097152) throw new IOException("Receive buffer limit reached.");
+                int retained = readEnd - readStart;
+                if (retained + count > 2097152) throw new IOException("Receive buffer limit reached.");
+                if (readEnd + count > incoming.Length) {
+                    if (retained + count > incoming.Length) Array.Resize(ref incoming, Math.Min(2097152, Math.Max(incoming.Length * 2, retained + count)));
+                    Buffer.BlockCopy(incoming, readStart, incoming, 0, retained); readStart = 0; readEnd = retained;
+                }
+                Buffer.BlockCopy(readBuffer, 0, incoming, readEnd, count); readEnd += count;
             }
-            for (int n = 0; n < 64 && peer != null && incoming.Count >= 4; n++) {
-                int length = incoming[0] | incoming[1] << 8 | incoming[2] << 16 | incoming[3] << 24;
+            for (int n = 0; n < 128 && peer != null && readEnd - readStart >= 4; n++) {
+                int header = incoming[readStart] | incoming[readStart + 1] << 8 | incoming[readStart + 2] << 16 | incoming[readStart + 3] << 24;
+                bool compressed = (header & CompressedFrame) != 0;
+                int length = header & ~CompressedFrame;
                 if (length < 0 || length > MaxFrame) throw new IOException("Invalid frame length.");
-                if (incoming.Count < length + 4) return;
-                byte[] data = incoming.GetRange(4, length).ToArray();
-                incoming.RemoveRange(0, length + 4);
+                if (readEnd - readStart < length + 4) return;
+                byte[] data = new byte[length]; Buffer.BlockCopy(incoming, readStart + 4, data, 0, length);
+                readStart += length + 4;
+                if (readStart == readEnd) readStart = readEnd = 0;
+                if (compressed) data = Inflate(data);
                 // Count only complete frames for the inactivity deadline.
                 received = clock();
                 if (!Connected) { if (length == 0) throw new IOException("Missing handshake."); AcceptHandshake(data); }
-                else if (length != 0 && PacketReceived != null) PacketReceived(data);
+                else if (data.Length != 0 && !HandlePing(data) && PacketReceived != null) PacketReceived(data);
+            }
+        }
+
+        private static byte[] Inflate(byte[] data)
+        {
+            using (MemoryStream input = new MemoryStream(data)) using (DeflateStream zipper = new DeflateStream(input, CompressionMode.Decompress)) using (MemoryStream output = new MemoryStream()) {
+                byte[] buffer = new byte[8192]; int read;
+                while ((read = zipper.Read(buffer, 0, buffer.Length)) > 0) {
+                    if (output.Length + read > MaxFrame) throw new IOException("Decompressed frame limit reached.");
+                    output.Write(buffer, 0, read);
+                }
+                if (output.Length == 0) throw new IOException("Empty compressed frame.");
+                return output.ToArray();
             }
         }
 
@@ -196,7 +298,8 @@ namespace GungeonTogether.Lan
             bool hadPeer = peer != null;
             if (peer != null) { try { peer.Close(); } catch { } }
             peer = null; connecting = null; Connected = false;
-            incoming.Clear(); outgoing.Clear(); offset = queued = 0;
+            outgoing.Clear(); latest.Clear(); readStart = readEnd = offset = queued = 0;
+            waitingPing = 0; nextPing = 0; RoundTripMilliseconds = 0;
             Status = status + (listener != null ? " Waiting for another connection." : "");
             if (hadPeer && DisconnectedEvent != null) DisconnectedEvent();
         }

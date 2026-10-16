@@ -6,6 +6,8 @@ $publication = Join-Path $PSScriptRoot 'publication'
 $manifest = Get-Content -LiteralPath (Join-Path $publication 'manifest.json') -Raw | ConvertFrom-Json
 if ($manifest.name -notmatch '^[A-Za-z0-9_]{1,128}$' -or $manifest.version_number -notmatch '^\d+\.\d+\.\d+$' -or $manifest.description.Length -gt 250) { throw 'Invalid manifest metadata.' }
 $version = $manifest.version_number
+$releaseNotesName = "RELEASE-NOTES-$version.md"
+if (!(Test-Path -LiteralPath (Join-Path $publication $releaseNotesName) -PathType Leaf)) { throw 'Release notes for the manifest version are missing.' }
 $dllName = "GungeonTogether.LAN-$version-alpha.dll"
 $runtime = Join-Path $PSScriptRoot ('bin\' + $dllName)
 $runtimeHash = (Get-FileHash -LiteralPath $runtime -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -23,8 +25,18 @@ $packageName = "GungeonTogether_LAN-$version$suffix-Thunderstore.zip"
 $sourceName = "GungeonTogether_LAN-$version$suffix-source.zip"
 $checksumName = "GungeonTogether_LAN-$version$suffix-SHA256SUMS.txt"
 foreach ($name in @($packageName,$sourceName,$checksumName)) { if (Test-Path -LiteralPath (Join-Path $out $name)) { throw ('Refusing to overwrite release: ' + $name) } }
-$sourceFiles = @('README.ru.md','Build-LAN.ps1','Build-Launcher.ps1','Build-Thunderstore.ps1','Test-LAN.ps1','Test-Dungeon.ps1','Test-Profile.ps1','Test-Rendering.ps1','Test-GameBindings.ps1','GungeonTogether\GungeonTogether.csproj','GungeonTogether\Networking\Players\RemotePlayerAvatar.cs','launcher\Launcher.cs','tests\LanTests.cs','tests\DungeonTests.cs','tests\ProfileTests.cs','tests\RenderingTests.cs','validation\summary.json')
+$sourceFiles = @('README.md','README.ru.md','Build-LAN.ps1','Build-Launcher.ps1','Build-Thunderstore.ps1','Test-LAN.ps1','Test-Dungeon.ps1','Test-Profile.ps1','Test-Rendering.ps1','Test-GameBindings.ps1','Test-Display.ps1','Test-Acknowledgements.ps1','Test-Latency.ps1','Test-SpriteVisibility.ps1','GungeonTogether\GungeonTogether.csproj','GungeonTogether\Networking\Players\RemotePlayerAvatar.cs','launcher\Launcher.cs','tests\LanTests.cs','tests\DungeonTests.cs','tests\ProfileTests.cs','tests\RenderingTests.cs','tests\DisplayProfileTests.cs','tests\AcknowledgementTests.cs','tests\TransportLatencyTests.cs','tests\SpriteVisibilityTests.cs','validation\summary.json','validation\latency-031\README.md','validation\latency-031\fifo-high-entropy.txt','validation\latency-031\latest-high-entropy.txt')
 $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'GungeonTogether\Lan') -Filter '*.cs' -File | Where-Object Name -ne 'LanPlugin.cs' | ForEach-Object { 'GungeonTogether\Lan\' + $_.Name })
+$sourceFiles += 'validation\latency-031\native-summary.json'
+$sourceFiles = @($sourceFiles | Where-Object { $_ -notin @('Build-Launcher.ps1','launcher\Launcher.cs') })
+$sourceFiles += @('validation\host-freeze-032\README.md','validation\host-freeze-032\native-summary.json')
+$sourceFiles += @('.gitignore','GungeonTogether.sln')
+$publicationSourceFiles = @('README.md','README.ru.md','LICENSE','NOTICE.md','CHANGELOG.md','manifest.json','VALIDATION.md','INSTALL-PROFILES.ru.md','Build-Icon.ps1','UPDATE-GITHUB.ru.md','PUBLISH-THUNDERSTORE.ru.md')
+$publicationSourceFiles += @(Get-ChildItem -LiteralPath $publication -Filter 'RELEASE-NOTES-*.md' -File | Select-Object -ExpandProperty Name)
+$publicationSourceFiles += @(Get-ChildItem -LiteralPath $publication -Filter 'VALIDATION-*.md' -File | Select-Object -ExpandProperty Name)
+$publicationSourceFiles += 'START-HERE.ru.md'
+foreach ($relative in $sourceFiles) { if (!(Test-Path -LiteralPath (Join-Path $PSScriptRoot $relative) -PathType Leaf)) { throw ('Missing source package input: ' + $relative) } }
+foreach ($name in $publicationSourceFiles) { if (!(Test-Path -LiteralPath (Join-Path $publication $name) -PathType Leaf)) { throw ('Missing publication input: ' + $name) } }
 function Add-Entry($zip,[string]$path,[string]$name) {
  if ($name.Contains('..') -or $name.Contains(':') -or $name.StartsWith('/')) { throw 'Unsafe ZIP entry.' }
  [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip,$path,$name,[IO.Compression.CompressionLevel]::Optimal) | Out-Null
@@ -32,14 +44,14 @@ function Add-Entry($zip,[string]$path,[string]$name) {
 $sourceZip = [IO.Compression.ZipFile]::Open((Join-Path $out $sourceName),[IO.Compression.ZipArchiveMode]::Create)
 try {
  foreach ($relative in @($sourceFiles | Sort-Object -Unique)) { Add-Entry $sourceZip (Join-Path $PSScriptRoot $relative) $relative.Replace('\','/') }
- foreach ($name in @('README.md','README.ru.md','LICENSE','NOTICE.md','CHANGELOG.md','manifest.json','VALIDATION.md','INSTALL-PROFILES.ru.md','Build-Icon.ps1','UPDATE-GITHUB.ru.md','PUBLISH-THUNDERSTORE.ru.md','RELEASE-NOTES-0.3.0.md')) { Add-Entry $sourceZip (Join-Path $publication $name) ('publication/' + $name) }
- Add-Entry $sourceZip (Join-Path $publication 'README.md') 'README.md'
+ foreach ($name in @($publicationSourceFiles | Sort-Object -Unique)) { Add-Entry $sourceZip (Join-Path $publication $name) ('publication/' + $name) }
  Add-Entry $sourceZip (Join-Path $publication 'LICENSE') 'LICENSE'
  Add-Entry $sourceZip (Join-Path $publication 'icon.png') 'publication/icon.png'
 } finally { $sourceZip.Dispose() }
 $zip = [IO.Compression.ZipFile]::Open((Join-Path $out $packageName),[IO.Compression.ZipArchiveMode]::Create)
 try {
- foreach ($name in @('manifest.json','README.md','README.ru.md','icon.png','CHANGELOG.md','LICENSE','NOTICE.md','INSTALL-PROFILES.ru.md','VALIDATION.md')) { Add-Entry $zip (Join-Path $publication $name) $name }
+ foreach ($name in @('manifest.json','README.md','README.ru.md','icon.png','CHANGELOG.md','LICENSE','NOTICE.md','INSTALL-PROFILES.ru.md','VALIDATION.md','VALIDATION-0.3.0.md')) { Add-Entry $zip (Join-Path $publication $name) $name }
+ Add-Entry $zip (Join-Path $publication $releaseNotesName) $releaseNotesName
  Add-Entry $zip $runtime ('BepInEx/plugins/GungeonTogetherLAN/' + $dllName)
 } finally { $zip.Dispose() }
 $hashes = @(

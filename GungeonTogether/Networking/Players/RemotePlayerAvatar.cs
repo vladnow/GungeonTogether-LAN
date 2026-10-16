@@ -7,7 +7,7 @@ namespace GungeonTogether.Networking
     // A visual proxy only. It never moves or collides with the local controller.
     public sealed class RemotePlayerAvatar : MonoBehaviour
     {
-        private readonly SnapshotBuffer<LanPlayerState> frames = new SnapshotBuffer<LanPlayerState>(0.12);
+        private readonly SnapshotBuffer<LanPlayerState> frames = new SnapshotBuffer<LanPlayerState>(SnapshotBuffer<LanPlayerState>.DefaultDelay);
         private tk2dSprite sprite;
         private string collectionKey;
         private tk2dSpriteCollectionData collection;

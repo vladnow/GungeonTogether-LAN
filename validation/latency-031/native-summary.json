@@ -1,0 +1,39 @@
+{
+  "runtime_sha256": "56c59bfba820cb46bfbae51eafb13e992a5f361608d954c4e7cb909571b55536",
+  "scope": "artificial remote move/fire; native projectile damage to AI-disabled Bullet Kin; forced native transition to tt5; two-peer geometry barriers; rendered snapshots",
+  "scenarios": [
+    "two local processes with configured 7.5ms per-direction delay and128KiB/s downstream",
+    "two direct local processes"
+  ],
+  "latency": {
+    "measurement": "one client clock; input sample/enqueue to acknowledged state source presented; sparse observer; artificial controls",
+    "shaped_delay_ms_each_direction": 7.5,
+    "shaped_downstream_KiBps": 128,
+    "shaped_ack_received_samples": 814,
+    "shaped_ack_received_p95_ms": 65.057,
+    "shaped_source_presented_samples": 812,
+    "shaped_source_presented_mean_ms": 100.643,
+    "shaped_source_presented_p95_ms": 121.549,
+    "direct_source_presented_p95_ms": 102.141,
+    "single_artificial_movement_first_observed_ms": 104.042,
+    "movement_observation_is_sparse": true
+  },
+  "shop": {
+    "scenario": "shop-perpendicular",
+    "native_room": "Shop02_Annex",
+    "stock_sprites": 8,
+    "outline_sprites": 8,
+    "highlighted_items": 1,
+    "peer_fresh_frames": 3,
+    "native_renderer_leaks": 0,
+    "actual_game_PNGs_visually_verified": true,
+    "artificial_warp": true,
+    "artificial_range_callback": true,
+    "purchase_tested": false,
+    "client_price_text": false
+  },
+  "native_exceptions_before_pass": 0,
+  "normal_files_unchanged": 9,
+  "physical_Radmin_tested": false,
+  "full_campaign_tested": false
+}

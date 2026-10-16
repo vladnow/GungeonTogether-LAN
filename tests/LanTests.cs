@@ -41,7 +41,7 @@ internal static class LanTests
             writer.Write(magic); writer.Write(protocol); writer.Write(host); writer.Write(game); writer.Write(code); return Frame(ms.ToArray());
         }
     }
-    private static readonly string Magic = "GungeonTogether-LAN-dungeon-0.3.0";
+    private static readonly string Magic = "GungeonTogether-LAN-dungeon-0.3.2";
     private static void Reject(string game, string code, string magic, int protocol, bool role, string expected, string name)
     {
         using (LanTransport host = new LanTransport()) {
@@ -119,6 +119,8 @@ internal static class LanTests
             Reject(Fingerprint, "wrong-code", Magic, 1, false, "Wrong session code", "wrong session code rejected");
             Reject(Fingerprint, "abcdef", "other-mod", 1, false, "version/role mismatch", "mod version mismatch rejected");
             Reject(Fingerprint, "abcdef", "GungeonTogether-LAN-dungeon-0.2.2", 1, false, "version/role mismatch", "previous 0.2.2 peer rejected before new wire payloads");
+            Reject(Fingerprint, "abcdef", "GungeonTogether-LAN-dungeon-0.3.0", 1, false, "version/role mismatch", "previous 0.3.0 peer rejected before compressed wire payloads");
+            Reject(Fingerprint, "abcdef", "GungeonTogether-LAN-dungeon-0.3.1", 1, false, "version/role mismatch", "previous 0.3.1 peer rejected before enemy-dependency wire payloads");
             Reject(Fingerprint, "abcdef", Magic, 2, false, "version/role mismatch", "protocol mismatch rejected");
             Reject(Fingerprint, "abcdef", Magic, 1, true, "version/role mismatch", "host-to-host rejected");
             using (LanTransport host = new LanTransport()) {
@@ -156,7 +158,7 @@ internal static class LanTests
             fakeTime = 0;
             using (LanTransport host = new LanTransport(delegate { return fakeTime; }))
             using (LanTransport client = new LanTransport(delegate { return fakeTime; })) {
-                Pair(host, client); fakeTime = 16; host.Poll();
+                Pair(host, client); fakeTime = 31; host.Poll();
                 Assert(!host.Connected && host.Status.Contains("stopped responding"), "inactivity timeout");
             }
             using (LanTransport host = new LanTransport())

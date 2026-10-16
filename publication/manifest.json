@@ -1,8 +1,8 @@
 {
   "name": "GungeonTogether_LAN",
-  "version_number": "0.3.0",
+  "version_number": "0.3.2",
   "website_url": "https://github.com/vladnow/GungeonTogether-LAN",
-  "description": "Experimental two-player LAN/IP co-op: smoother movement, five guest characters and an English menu. Known later-floor layout mismatch; early-floor testing alpha. Use a dedicated profile.",
+  "description": "Experimental two-player LAN/Radmin co-op. Host/Join by IPv4, five guest characters. Fixes missing native enemy sprites stopping early rooms. Full campaign remains unverified.",
   "dependencies": [
     "BepInEx-BepInExPack_EtG-5.4.2101"
   ]

@@ -1,0 +1,29 @@
+PASS freshness run uses public SendLatest(byte[]) API
+METRIC idle_rtt_p95_ms=79.2
+PASS real loopback socket RTT stays below 150 ms before congestion
+PASS latest state replacement preserves reliable message order and independent state keys
+PASS one queued state is replaced before any socket flush
+PASS outer compressed header round-trips the exact original packet bytes
+METRIC compressible_payload_bytes=32768 actual_wire_bytes=81
+PASS compression reduces a repetitive full state on the real socket
+PASS sustained bandwidth pressure preserves the connection
+PASS throttled socket delivers enough snapshots to measure age
+PASS snapshot buffer samples the received stream
+METRIC mode=latest link_bytes_per_second=131072 produced=90 received=23 latest_sequence=78 state_age_p50_ms=295.5 state_age_p95_ms=341.3 sampled_age_ms=435.5 peak_app_pending_bytes=16436
+PASS congested newest-state delivery age stays below 800 ms
+PASS render sample remains younger than one second under sustained congestion
+PASS replaceable application backlog stays below five state frames
+PASS congestion exercises replacement of unsent state frames
+PASS reliable control 1 survives state coalescing in order
+PASS reliable control 2 survives state coalescing in order
+PASS reliable control 3 survives state coalescing in order
+PASS reliable control 4 survives state coalescing in order
+PASS reliable control 5 survives state coalescing in order
+PASS reliable control 6 survives state coalescing in order
+PASS reliable control 7 survives state coalescing in order
+PASS final produced state arrives after the bottleneck is removed
+METRIC slow_poll_interval_ms=100 received=102 max_sample_age_ms=136.3 buffer_count=3
+PASS ten-Hz receiver polling drains sixty-Hz state batches
+PASS slow polling does not retain a one-second SnapshotBuffer playback backlog
+PASS snapshot interpolation buffer remains bounded
+TRANSPORT_LATENCY_PASS assertions=24 game_launched=false real_sockets=true shaped_delivery=true
