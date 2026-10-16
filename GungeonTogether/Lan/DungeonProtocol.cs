@@ -4,23 +4,26 @@ using System.IO;
 
 namespace GungeonTogether.Lan
 {
-    public enum DungeonMessage : byte { Input = 2, Level = 3, Ready = 4, Snapshot = 5, Collection = 6, Stop = 7, Character = 8 }
+    public enum DungeonMessage : byte { Input = 2, Level = 3, Ready = 4, Snapshot = 5, Collection = 6, Stop = 7, Character = 8, Audio = 9 }
 
     public sealed class RemoteInput
     {
+        public const float DefaultViewAspect = 16f / 9f, MinViewAspect = 0.25f, MaxViewAspect = 8f;
         public uint Sequence;
         public int Epoch;
         public float MoveX, MoveY, AimX, AimY;
+        public float ViewAspect = DefaultViewAspect;
         public ulong Buttons;
         public byte[] Encode()
         {
-            return Wire.Write(DungeonMessage.Input, delegate(BinaryWriter w) { w.Write(Epoch); w.Write(Sequence); w.Write(MoveX); w.Write(MoveY); w.Write(AimX); w.Write(AimY); w.Write(Buttons); });
+            return Wire.Write(DungeonMessage.Input, delegate(BinaryWriter w) { w.Write(Epoch); w.Write(Sequence); w.Write(MoveX); w.Write(MoveY); w.Write(AimX); w.Write(AimY); w.Write(Buttons); w.Write(ViewAspect); });
         }
         public static RemoteInput Decode(byte[] bytes)
         {
             return Wire.Read(bytes, DungeonMessage.Input, delegate(BinaryReader r) {
-                RemoteInput value = new RemoteInput { Epoch = r.ReadInt32(), Sequence = r.ReadUInt32(), MoveX = r.ReadSingle(), MoveY = r.ReadSingle(), AimX = r.ReadSingle(), AimY = r.ReadSingle(), Buttons = r.ReadUInt64() };
+                RemoteInput value = new RemoteInput { Epoch = r.ReadInt32(), Sequence = r.ReadUInt32(), MoveX = r.ReadSingle(), MoveY = r.ReadSingle(), AimX = r.ReadSingle(), AimY = r.ReadSingle(), Buttons = r.ReadUInt64(), ViewAspect = r.ReadSingle() };
                 Wire.Range(value.MoveX, -1, 1); Wire.Range(value.MoveY, -1, 1); Wire.Range(value.AimX, -1, 1); Wire.Range(value.AimY, -1, 1);
+                Wire.Range(value.ViewAspect, MinViewAspect, MaxViewAspect);
                 if ((value.Buttons >> 41) != 0 || value.Epoch < 1) throw new IOException("Invalid remote controls.");
                 return value;
             });
@@ -103,6 +106,9 @@ namespace GungeonTogether.Lan
         public uint InputSequence;
         public float CameraX, CameraY, CameraZ, CameraSize, PlayerX, PlayerY, Health, Armor;
         public int Ammo, Currency, Keys, Blanks;
+        public float MaxHealth;
+        public int GunId = -1, ItemId = -1, ClipAmmo, ClipCapacity;
+        public bool Reloading;
         public string GunName = "", ActiveItemName = "";
         public float ActiveItemCooldown;
         public bool Paused, InfiniteAmmo, InfiniteKeys, ActiveItemReady, ActiveItemActive, IsGhost, IsDead, GameOver;
@@ -115,7 +121,8 @@ namespace GungeonTogether.Lan
                 w.Write(Epoch); w.Write(Sequence); w.Write(SentAt); w.Write(InputSequence); w.Write(CameraX); w.Write(CameraY); w.Write(CameraZ); w.Write(CameraSize);
                 w.Write(PlayerX); w.Write(PlayerY); w.Write(Health); w.Write(Armor); w.Write(Ammo); w.Write(Paused);
                 w.Write(Currency); w.Write(Keys); w.Write(Blanks); w.Write(GunName); w.Write(ActiveItemName); w.Write(ActiveItemCooldown);
-                w.Write(InfiniteAmmo); w.Write(InfiniteKeys); w.Write(ActiveItemReady); w.Write(ActiveItemActive); w.Write(IsGhost); w.Write(IsDead); w.Write(GameOver); w.Write(Sprites.Count);
+                w.Write(InfiniteAmmo); w.Write(InfiniteKeys); w.Write(ActiveItemReady); w.Write(ActiveItemActive); w.Write(IsGhost); w.Write(IsDead); w.Write(GameOver);
+                w.Write(MaxHealth); w.Write(GunId); w.Write(ItemId); w.Write(ClipAmmo); w.Write(ClipCapacity); w.Write(Reloading); w.Write(Sprites.Count);
                 foreach (SpriteState sprite in Sprites) sprite.Write(w);
             });
         }
@@ -127,6 +134,7 @@ namespace GungeonTogether.Lan
                 value.GunName = Wire.String(r, MaxHudNameLength); value.ActiveItemName = Wire.String(r, MaxHudNameLength); value.ActiveItemCooldown = r.ReadSingle();
                 value.InfiniteAmmo = r.ReadBoolean(); value.InfiniteKeys = r.ReadBoolean(); value.ActiveItemReady = r.ReadBoolean(); value.ActiveItemActive = r.ReadBoolean();
                 value.IsGhost = r.ReadBoolean(); value.IsDead = r.ReadBoolean(); value.GameOver = r.ReadBoolean();
+                value.MaxHealth = r.ReadSingle(); value.GunId = r.ReadInt32(); value.ItemId = r.ReadInt32(); value.ClipAmmo = r.ReadInt32(); value.ClipCapacity = r.ReadInt32(); value.Reloading = r.ReadBoolean();
                 value.ValidateHud();
                 Wire.Time(value.SentAt);
                 Wire.Range(value.CameraX, -100000, 100000); Wire.Range(value.CameraY, -100000, 100000); Wire.Range(value.CameraZ, -100000, 100000); Wire.Range(value.CameraSize, 0.01f, 10000);
@@ -140,6 +148,9 @@ namespace GungeonTogether.Lan
         }
         private void ValidateHud()
         {
+            Wire.Range(MaxHealth, 0, 10000);
+            if (GunId < -1 || GunId > 1000000 || ItemId < -1 || ItemId > 1000000 || ClipAmmo < 0 || ClipAmmo > MaxHudCounter || ClipCapacity < 0 || ClipCapacity > MaxHudCounter)
+                throw new IOException("Invalid guest equipment HUD data.");
             if (Ammo < 0 || Ammo > MaxHudCounter || Currency < 0 || Currency > MaxHudCounter || Keys < 0 || Keys > MaxHudCounter || Blanks < 0 || Blanks > MaxHudCounter)
                 throw new IOException("Invalid guest HUD counter.");
             Wire.Range(ActiveItemCooldown, 0, 1);

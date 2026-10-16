@@ -1,0 +1,81 @@
+{
+  "version": "0.3.3",
+  "date": "2026-10-16",
+  "runtime_sha256": "2d90b7494bcfff146dbb227580a3ed9cd1c167f5914d2ab89fba0f8cc36e7781",
+  "cases": [
+    {
+      "scenario": "pilot-view-verified",
+      "runtime_sha256": "2d90b7494bcfff146dbb227580a3ed9cd1c167f5914d2ab89fba0f8cc36e7781",
+      "guest": "Pilot",
+      "guest_view_aspect": 1.7777777777777777,
+      "viewport_fixture": "Standard 16:9 native view in an 800x600 test window",
+      "separation_units": 32,
+      "room": "Gungeon_Normal_HorizontalRoomPitsTraps",
+      "matching_floor_barriers": [
+        "1:401177042ee9e5345f8ecc9e7206cd1b093d97f7ae3c4216b5f3e34495a63a78",
+        "2:8e0a46c3251e79d39d1d6a496700a3fc4cca32e28e023ad30ded8a7b4e4c722e"
+      ],
+      "base_gameplay_passes": 2,
+      "camera_assertions": {
+        "client": 25,
+        "host": 18
+      },
+      "own_camera_both_peers": true,
+      "three_native_blobs_outside_host_view_visible_and_animated_on_client": true,
+      "deferred_frame_fixture": true,
+      "deferred_frame_matches": 4,
+      "native_guest_movement_and_projectile_capture": true,
+      "manual_framing_and_follow_restore": true,
+      "existing_collision_rejection_preserved": true,
+      "extra_wide_edge_enemy": false,
+      "artificial_room_warp": true,
+      "AI_disabled_for_controlled_enemy_checks": true,
+      "actual_PNGs_visually_verified": true,
+      "natural_campaign": false
+    },
+    {
+      "scenario": "hunter-wide-verified",
+      "runtime_sha256": "2d90b7494bcfff146dbb227580a3ed9cd1c167f5914d2ab89fba0f8cc36e7781",
+      "guest": "Hunter",
+      "guest_view_aspect": 3.0,
+      "viewport_fixture": "Native aspect override plus Camera.aspect/Pixelator zoom refresh in an 800x600 test window",
+      "separation_units": 32,
+      "room": "Gungeon_Normal_HorizontalRoomPitsTraps",
+      "matching_floor_barriers": [
+        "1:401177042ee9e5345f8ecc9e7206cd1b093d97f7ae3c4216b5f3e34495a63a78",
+        "2:8e0a46c3251e79d39d1d6a496700a3fc4cca32e28e023ad30ded8a7b4e4c722e"
+      ],
+      "base_gameplay_passes": 2,
+      "camera_assertions": {
+        "client": 31,
+        "host": 20
+      },
+      "own_camera_both_peers": true,
+      "three_native_blobs_outside_host_view_visible_and_animated_on_client": true,
+      "deferred_frame_fixture": true,
+      "deferred_frame_matches": 4,
+      "native_guest_movement_and_projectile_capture": true,
+      "manual_framing_and_follow_restore": true,
+      "existing_collision_rejection_preserved": true,
+      "extra_wide_edge_enemy": true,
+      "artificial_room_warp": true,
+      "AI_disabled_for_controlled_enemy_checks": true,
+      "actual_PNGs_visually_verified": true,
+      "natural_campaign": false
+    }
+  ],
+  "test_audio": "disabled",
+  "test_windows": "800x600 windowed, WS_EX_NOACTIVATE, cursor None, background simulation",
+  "computer_use": false,
+  "normal_save_files_unchanged": 9,
+  "physical_pcs_radmin_tested": false,
+  "full_campaign_tested": false,
+  "natural_room_clears": false,
+  "ghost_death_and_all_cinematics_tested": false,
+  "exploratory_attempts_excluded": [
+    "Corrected guest camera Z construction to use the native vector conversion, then reran both final cases.",
+    "Adjusted an over-strict probe distance assertion for native room framing and reset entrance tracking after artificial warps.",
+    "Replaced assumptions about deferred native animation flags with an explicit cache fixture; native getters flush those flags during capture."
+  ],
+  "private_logs_game_assets_saves_and_observers_distributed": false
+}

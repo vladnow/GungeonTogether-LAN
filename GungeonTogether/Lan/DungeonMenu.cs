@@ -80,33 +80,13 @@ namespace GungeonTogether.Lan
 
         private void OnGUI()
         {
-            if (transport == null || (IsSmoke && !smokeMenuVisible)) return;
-            InitMenuStyles();
-            if (Session != null && Session.Mirroring && Session.Snapshot != null && !visible) {
-                WorldSnapshot state = Session.Snapshot;
-                Matrix4x4 hudMatrix = GUI.matrix;
-                bool textWrap = menuText.wordWrap, smallWrap = menuSmall.wordWrap, textRich = menuText.richText, smallRich = menuSmall.richText;
-                float hudScale = Mathf.Min(1f, Mathf.Min(Screen.width / 596f, Screen.height / 148f));
-                GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(hudScale, hudScale, 1));
-                menuText.wordWrap = menuSmall.wordWrap = menuText.richText = menuSmall.richText = false;
-                try {
-                    Frame(new Rect(14, 14, 568, 120), Ink, Border);
-                    string ammo = state.InfiniteAmmo ? "∞" : state.Ammo.ToString();
-                    string keys = state.InfiniteKeys ? "∞" : state.Keys.ToString();
-                    GUI.Label(new Rect(26, 22, 544, 21), CharacterCatalog.Name(Session.GuestCharacter) + "   HP " + state.Health.ToString("0.0") + "   Armor " + state.Armor.ToString("0") + "   Ammo " + ammo, menuText);
-                    GUI.Label(new Rect(26, 47, 544, 18), "Cash " + state.Currency + "   Keys " + keys + "   Blanks " + state.Blanks, menuSmall);
-                    GUI.Label(new Rect(26, 67, 544, 18), "Gun: " + (state.GunName.Length == 0 ? "None" : state.GunName), menuSmall);
-                    string itemStatus = state.ActiveItemActive ? "Active" : state.ActiveItemReady ? "Ready" : state.ActiveItemCooldown > 0 ? "Charging " + Mathf.RoundToInt((1 - state.ActiveItemCooldown) * 100) + "%" : "Unavailable";
-                    string itemName = state.ActiveItemName.Length > 48 ? state.ActiveItemName.Substring(0, 47) + "…" : state.ActiveItemName;
-                    GUI.Label(new Rect(26, 87, 544, 18), "Item: " + (itemName.Length == 0 ? "None" : itemName + " · " + itemStatus), menuSmall);
-                    string status = state.GameOver ? "Run ended" : state.IsGhost ? "Ghost · awaiting revival" : state.IsDead ? "Downed" : "Ctrl+P · co-op menu";
-                    if (state.Paused && !state.GameOver) status += "   ·   Paused by host";
-                    GUI.Label(new Rect(26, 109, 544, 18), status, menuSmall);
-                } finally {
-                    GUI.matrix = hudMatrix;
-                    menuText.wordWrap = textWrap; menuSmall.wordWrap = smallWrap; menuText.richText = textRich; menuSmall.richText = smallRich;
-                }
+            if (transport == null) return;
+            if (Session != null && Session.Mirroring && Session.Snapshot != null && (!visible || IsSmoke) && (!IsSmoke || presentationProbe)) {
+                try { clientHud.Draw(Session.Snapshot); }
+                catch (Exception ex) { if (!hudErrorLogged) { hudErrorLogged = true; Logger.LogWarning("GT_CLIENT_HUD: " + ex); } }
             }
+            if (IsSmoke && !smokeMenuVisible) return;
+            InitMenuStyles();
             if (!visible) return;
             Matrix4x4 previous = GUI.matrix;
             float scale = Mathf.Min(1, Mathf.Min(Screen.width / 692f, Screen.height / 642f));
@@ -130,7 +110,7 @@ namespace GungeonTogether.Lan
             Fill(new Rect(28, 21, 8, 5), Gold);
             Fill(new Rect(24, 50, 16, 3), Border);
             GUI.Label(new Rect(55, 18, 480, 39), "GUNGEON TOGETHER", menuTitle);
-            GUI.Label(new Rect(55, 59, 490, 23), "NETWORK CO-OP   /   LAN 0.3.2 · ALPHA", menuSmall);
+            GUI.Label(new Rect(55, 59, 490, 23), "NETWORK CO-OP   /   LAN 0.3.4 · ALPHA", menuSmall);
             if (MenuButton(new Rect(550, 23, 36, 32), "×", true, false)) visible = false;
 
             if (!UsesSeparateProfile) {

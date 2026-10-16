@@ -55,6 +55,7 @@ namespace GungeonTogether.Lan
         public GungeonActions Actions { get { return actions; } }
         public uint LastInputSequence { get { return state.Sequence; } }
         public float LastMoveX { get { return state.MoveX; } }
+        public float ViewAspect { get { return state.ViewAspect; } }
 
         public RemoteControls()
         {

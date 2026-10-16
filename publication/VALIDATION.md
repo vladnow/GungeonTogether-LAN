@@ -1,54 +1,49 @@
-# Validation of 0.3.2 alpha
+# Validation of 0.3.4 alpha
 
-Date: 2026-10-16.
+Date: 2026-10-16. **Runtime SHA-256: `d3594272f979a4c03d0b70a82a7c8f89f4b92976c2209281a8b7913ff85fce61`.** Both final native scenarios used this exact DLL. Historical validation reports remain separate.
 
-**Runtime SHA-256: `761a6ab788f57457f68af082a51fa3cde8c2bcaf559df9fa0f53c2b144985d5f`.** Native cases below used this exact DLL. Historical results belong to their original binaries and remain separate in VALIDATION-0.3.1.md and VALIDATION-0.3.0.md.
+**This is an early-floor alpha. The fourth-floor Sell Creep layout mismatch remains unresolved. Full natural campaign completion is not established.**
 
-**Known blocker: the fourth-floor Sell Creep layout mismatch is unresolved. This is an early-floor alpha, not a confirmed complete campaign.**
+## Change
 
-## Confirmed failure and change
+The guest now draws a custom graphical HUD from authoritative player-two state: current/max health, armor, blanks, cash, keys, equipped gun/item IDs, ammo, magazine count/capacity, reload and active-item state. It reads local native UI atlases and pickup sprites, including rotated atlas packing, without distributing game resources or modifying client placeholder inventory/health to drive widgets.
 
-A real 0.3.1 profile log contained two stops: the client could not resolve BlobulinSpriteCollection or BlobulonSpriteCollection, sent Stop, and the host paused/opened the LAN menu. Around those stops, mod RTT was approximately 16–33 ms and the application queue was generally empty. A screenshot independently showed the Blobulon failure. This identifies these specific stops; it does not establish that every reported freeze has the same cause.
+Host combat PostEvent calls are captured as bounded event-ID batches with emitter positions and per-emitter Wwise switches. The guest dispatches them into its own Wwise engine and suppresses duplicate local combat events while mirroring. Local volume settings are not forwarded. Sender queues, source objects and batch sizes are bounded. Old-floor, duplicate and stale batches are dropped; a clock calibrated from snapshots also detects a delayed FIFO sound arriving before a delayed world frame. Sources are stopped/disposed during teardown and after inactivity. Periodic GT_NETWORK diagnostics now include audio counters.
 
-The old 0.3.1 DLL was run in two private local game copies. After the initial move/fire/transition smoke test, the host explicitly spawned native Blobulin, Blobuloid and Blobulon. The client lacked the collections, stopped on **BlobulinSpriteCollection**, and the host received the same friend-stopped message. This reproduces the original failure before the change.
-
-Native source inspection showed that these sprite collections are embedded prefab dependencies rather than independently loadable BraveResources/tk2d assets. The three enemy names do not map reliably to the collection names: guessing from the name is insufficient. The change transmits the owning native enemy GUID, loads the local enemy prefab dependencies when needed, then retains the original collection GUID and ordered-table fingerprint verification. Prefabs are loaded as assets; no extra client enemy instance is created by the loader.
+The shared world, separate camera policy, embedded enemy-resource loading and 60 ms snapshot interpolation remain. No further input-latency reduction is claimed.
 
 ## Automated checks
 
-The current source passed **224 checks**: transport 30, dungeon protocol 75, save-profile policy 19, rendering/characters 38, display migration 9, input acknowledgements 9, sprite visibility/material descriptors 20, and constrained transport 24. Another **20 managed Harmony targets** resolved uniquely against the installed game libraries. Compilation used the installed Steam game assemblies and BepInEx 5 references.
+**265 checks passed:** transport 32, dungeon protocol 84, profile policy 19, rendering/characters 38, display migration 9, acknowledgements 9, sprite visibility 20, constrained transport 24, and presentation 30.
 
-New checks cover optional/exact enemy dependencies, invalid identifiers, the previous collection payload without its new dependency field, and rejection of a 0.3.1 peer before new wire messages are used. Existing transport/interpolation/visibility safeguards passed. These checks alone do not prove native gameplay.
+New coverage includes equipment/max-health wire data, half-heart values, invalid equipment/counts, bounded sound bursts and switches, non-finite positions/timestamps, zero event/emitter IDs, duplicate switch groups, trailing bytes, duplicate/out-of-order/old-floor events, sequence wrap, stale audio under FIFO congestion, clock recovery/new-floor calibration and rejection of a 0.3.3 peer.
 
-## Native game cases
+**36 native managed targets/contracts passed:** 22 declarative Harmony targets and all twelve PostEvent plus two SetSwitch overloads. The sound wrappers in the installed assemblies call native Wwise directly, rather than nesting PostEvent wrappers and duplicating captures. Compilation used installed Steam Enter the Gungeon 2.1.9 and BepInEx 5 libraries.
 
-Two successful scenarios each used two local game processes and the exact hash above:
+## Final native scenarios
 
-| Case | Guest | Native evidence |
-| --- | --- | --- |
-| Missing enemy assets | Hunter | Matching floor 1/2 barriers, remote movement/fire, native projectile damage to an AI-disabled Bullet Kin, forced transition to tt5; three host-spawned blob enemies rendered in three observed client frames |
-| Enemy assets and room entries | Pilot | Same base smoke coverage; native blob prefabs spawned in a generated NORMAL room, all three client sprite meshes/textures/animations checked in three frames; actual host/client PNGs inspected; native death damage invoked, followed by six additional NORMAL-room entries |
+Two private local processes per scenario, with Pilot as host and these guests:
 
-The extended case includes **four named combat rooms and two unnamed NORMAL rooms**, using native WarpToPoint/ForceChangeRoom with invulnerable players. These are artificial room entries, not natural walking or six cleared fights. The three explicit blobs had AI disabled for stable rendering checks. Other room simulation remained native. Invoking native death damage exercises callbacks but does not prove every split/death outcome separately.
+| Guest | Verified client PostEvent invocations | Distinct event IDs | Native SetSwitch calls |
+| --- | ---: | ---: | ---: |
+| Pilot | 77 | 17 | 69 |
+| Hunter | 104 | 17 | 64 |
 
-The client continued receiving advancing world snapshots through the room sequence. An isolated negative native test supplied the correct enemy dependency but a wrong sprite-table fingerprint; resolution still rejected it. Both production sessions remained Running until intentional shutdown. There were no runtime exceptions in these successful logs. Stopping the host afterward produces an expected client disconnect/stop.
+Both first passed equal floor-1/floor-2 layout barriers, artificial remote movement/fire, native projectile damage to an AI-disabled Bullet Kin, interpolation and a forced native transition to tt5. They then changed the host's native guest state to 2.5/3 health, 2 armor, 3 blanks, 31 cash and 4 keys, acquired gun 15 and active item 108, and checked that the client received those values and actually repainted the graphical HUD with nine local UI assets plus the selected equipment. Actual client PNGs were inspected for both final cases.
 
-Two exploratory diagnostic runs were discarded: an observer plugin still referenced the old runtime assembly, and another observer looked up a blob after the host had killed it. The observers were corrected and the same production DLL was retested successfully. These observer failures are not counted as passing cases.
+The real first-floor gun-shot event reached the client before a synthetic second-floor sound cue. Client numeric PostEvent and SetSwitch hooks verified dispatch across the network. These counts span both floors; the session's own per-floor counters reset at transitions.
 
-A private observational latency sample for the Hunter direct-loopback case recorded 1,727 input-to-presented acknowledged-source observations: mean 86.743 ms, p95 114.697 ms. Acknowledgement receipt had mean 26.313 ms and p95 60.179 ms over 1,752 observations. This includes the existing 60 ms display buffer and sparse instrumentation. It is **not physical two-PC/Radmin evidence, a measured improvement over 0.3.1, or a response guarantee**. Cold synchronous asset loading can still cause a short hitch.
+## Silence and desktop safety
 
-All game tests were silent and windowed at 800×600, with WS_EX_NOACTIVATE, unconstrained cursor and background simulation. No Computer Use was used. Nine normal save-directory files retained their hashes. Test processes were stopped after evidence collection. Private game copies, logs, saves, screenshots and observer binaries remain outside publication packages; source includes only a sanitized summary.
+Every launch used -nosound, an active all-overload diagnostic PostEvent suppression patch and a paused Unity listener. The private probe allowed native gun code to reach PostEvent for capture tests; the sound-engine calls remained suppressed. All 77/104 relayed PostEvent invocations returned the forced zero playing ID. The Unity volume getter reported 1 in this no-sound build, so validation does not rely on a zero volume reading as proof of silence. No listening test was performed and audible balance/bank coverage is not established.
 
-## Distribution and limits
+All four final game processes verified 800x600 windowed operation, WS_EX_NOACTIVATE, an unconstrained cursor, background simulation and no foreground activation at the desktop-safety check. No Computer Use was used. Owned test processes were stopped after pass markers; the resulting peer-disconnect messages are expected controlled teardown. No game processes remain running. Nine normal save files and 110 existing release files retained their hashes. The private LAN test saves were allowed to change.
 
-The release contains a Thunderstore ZIP and a source ZIP. No updated launcher is built or included. Both PCs require **0.3.2**; old peers are rejected. The package builder checks manifest/runtime/validation agreement and preserves older release archives. A package inspection is distinct from an actual manager ZIP import or public upload.
+## Boundaries
 
-- Fourth-floor Sell Creep map mismatch remains unresolved; full natural campaign completion is unverified.
-- Two physical PCs over Radmin, all enemies/items/abilities, natural boss/elevator progression, endings, long sessions and modpacks are not covered by these tests.
-- The fix supports enemy collections with a discoverable native prefab owner. Unknown assets or real table mismatches still stop the session. This is not a promise that every missing-asset stop is resolved.
-- Complete client audio, effects/materials, beams, secret-wall changes and shop/dialogue UI are incomplete. Historical stock/highlight evidence does not establish complete shopping support.
-- Display interpolation remains 60 ms; client prediction is absent. Further latency reduction is not claimed.
-- Ordinary fullscreen startup, cursor hover and a fresh actual manager ZIP import were not separately tested in this iteration.
-- Active-run reconnection and host migration remain unsupported. Return to the foyer after a fault.
+- These are artificial local two-process scenarios, not two physical PCs over Radmin, ordinary room clearing, boss/elevator progression or full-run completion.
+- Audible playback, spatial balance, every enemy/weapon event/bank, RTPC parameters, music/ambience, every looping-stop/callback variant and third-party sound banks are unverified or incomplete. Sources idle for five seconds are stopped; long continuous effects can therefore differ.
+- The guest HUD is a custom presentation layer, not the full native inventory, map, shopping, dialogue or all special-key interfaces. Some effects/materials and beams remain incomplete.
+- The fourth-floor Sell Creep mismatch is unresolved. Active-run reconnection/host migration and fresh manager ZIP import were not tested. No public upload was performed.
 
-MIT attribution is preserved. Game assets/assemblies, BepInEx binaries and personal diagnostic logs are excluded. No upload or public availability is established by this report.
+Sanitized current evidence: `validation/summary.json` and `validation/presentation-034/native-summary.json`. Raw local logs and game screenshots are excluded from distribution.

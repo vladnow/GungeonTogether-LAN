@@ -79,19 +79,26 @@ namespace GungeonTogether.Lan
             signature = SpriteCollectionDescriptor.Fingerprint(names); collectionSignatures[key] = signature; return signature;
         }
 
-        public WorldSnapshot Capture(int epoch, uint sequence, Action<byte[]> send)
+        public WorldSnapshot Capture(int epoch, uint sequence, Action<byte[]> send, float guestAspect = RemoteInput.DefaultViewAspect)
         {
             long started = System.Diagnostics.Stopwatch.GetTimestamp();
             WorldSnapshot snapshot = new WorldSnapshot { Epoch = epoch, Sequence = sequence, SentAt = Time.realtimeSinceStartup };
             GameManager gm = GameManager.Instance;
             Camera camera = gm.MainCameraController.Camera;
-            Vector3 cam = camera.transform.position;
-            snapshot.CameraX = cam.x; snapshot.CameraY = cam.y; snapshot.CameraZ = cam.z; snapshot.CameraSize = camera.orthographicSize;
             PlayerController player = gm.SecondaryPlayer;
+            Vector3 cam = PlayerCamera.GuestPosition(gm.MainCameraController, player);
+            snapshot.CameraX = cam.x; snapshot.CameraY = cam.y; snapshot.CameraZ = cam.z; snapshot.CameraSize = camera.orthographicSize;
             if (player != null) {
                 snapshot.PlayerX = player.transform.position.x; snapshot.PlayerY = player.transform.position.y;
                 snapshot.Health = Mathf.Max(0, player.healthHaver.GetCurrentHealth()); snapshot.Armor = Mathf.Max(0, player.healthHaver.Armor);
+                snapshot.MaxHealth = Mathf.Clamp(player.healthHaver.GetMaxHealth(), 0, 10000);
                 Gun gun = player.CurrentGun;
+                if (gun != null) {
+                    snapshot.GunId = gun.PickupObjectId;
+                    snapshot.ClipAmmo = Mathf.Clamp(gun.ClipShotsRemaining, 0, WorldSnapshot.MaxHudCounter);
+                    snapshot.ClipCapacity = Mathf.Clamp(gun.ClipCapacity, 0, WorldSnapshot.MaxHudCounter);
+                    snapshot.Reloading = gun.IsReloading;
+                }
                 snapshot.Ammo = gun != null ? Mathf.Clamp(gun.CurrentAmmo, 0, WorldSnapshot.MaxHudCounter) : 0;
                 snapshot.GunName = gun != null ? WorldSnapshot.CleanHudName(gun.EncounterNameOrDisplayName) : "";
                 snapshot.InfiniteAmmo = gun != null && gun.InfiniteAmmo;
@@ -104,6 +111,7 @@ namespace GungeonTogether.Lan
                 snapshot.IsGhost = player.IsGhost; snapshot.IsDead = player.healthHaver.IsDead;
                 PlayerItem item = player.CurrentItem;
                 if (item != null) {
+                    snapshot.ItemId = item.PickupObjectId;
                     snapshot.ActiveItemName = WorldSnapshot.CleanHudName(item.EncounterNameOrDisplayName);
                     float cooldown = item.CooldownPercentage;
                     snapshot.ActiveItemCooldown = float.IsNaN(cooldown) || float.IsInfinity(cooldown) ? 0 : Mathf.Clamp01(cooldown);
@@ -119,17 +127,21 @@ namespace GungeonTogether.Lan
             }
             SeedSprites();
             CaptureCandidates = nativeSprites.Count; CulledSprites = 0;
-            Plane[] view = GeometryUtility.CalculateFrustumPlanes(camera);
-            // Renderer bounds retain large walls crossing the view even when their
-            // transform origin lies outside it. The margin covers interpolation.
-            for (int i = 0; i < view.Length; i++) view[i].distance += 2f;
+            // Only the guest needs network sprites; the host renders its native
+            // world. Cull against the guest's view even when it is off-screen here.
+            Plane[] view = PlayerCamera.GuestFrustum(camera, cam, guestAspect);
             for (int spriteIndex = 0; spriteIndex < nativeSprites.Count; spriteIndex++) {
                 tk2dBaseSprite sprite = nativeSprites[spriteIndex];
                 if (sprite == null || !sprite.gameObject.activeInHierarchy) continue;
                 Renderer renderer = sprite.GetComponent<Renderer>();
-                if (renderer == null || !renderer.enabled || sprite.Collection == null || sprite.spriteId < 0) continue;
-                if (!GeometryUtility.TestPlanesAABB(view, renderer.bounds)) { CulledSprites++; continue; }
+                if (renderer == null || !renderer.enabled) continue;
+                // Native getters flush the animator's deferred invisible frame.
+                // Read them before bounds so the guest gets current geometry
+                // even when the sprite never enters the host's own screen.
                 tk2dSpriteCollectionData sourceCollection = sprite.Collection;
+                int spriteId = sprite.spriteId;
+                if (sourceCollection == null || spriteId < 0) continue;
+                if (!GeometryUtility.TestPlanesAABB(view, renderer.bounds)) { CulledSprites++; continue; }
                 tk2dSpriteCollectionData actualCollection = sourceCollection.inst;
                 int materialMode = sprite.IsBraveOutlineSprite ? 1 : sprite.IsOutlineSprite ? 2 : 0;
                 long key = ((long)(uint)actualCollection.GetInstanceID() << 2) | (uint)materialMode;
@@ -150,7 +162,7 @@ namespace GungeonTogether.Lan
                     Color outline = renderer.sharedMaterial.GetColor("_OverrideColor"); outline.a *= sprite.color.a; color = outline;
                 }
                 SpriteState state = new SpriteState {
-                    Id = sprite.GetInstanceID(), CollectionId = collectionId, SpriteId = sprite.spriteId, SortingOrder = sprite.SortingOrder,
+                    Id = sprite.GetInstanceID(), CollectionId = collectionId, SpriteId = spriteId, SortingOrder = sprite.SortingOrder,
                     X = pos.x, Y = pos.y, Z = pos.z, Rotation = t.eulerAngles.z, ScaleX = SpriteRenderPolicy.ScaleAxis(scale.x, sprite.scale.x), ScaleY = SpriteRenderPolicy.ScaleAxis(scale.y, sprite.scale.y), ScaleZ = scale.z * sprite.scale.z,
                     Height = sprite.HeightOffGround, Color = (uint)(color.r | color.g << 8 | color.b << 16 | color.a << 24), Flags = (byte)((sprite.FlipX ? 1 : 0) | (sprite.FlipY ? 2 : 0) | (sprite.ShouldDoTilt && sprite.IsPerpendicular ? 4 : 0) | (sprite.ShouldDoTilt ? 8 : 0)), Layer = (byte)sprite.gameObject.layer
                 };

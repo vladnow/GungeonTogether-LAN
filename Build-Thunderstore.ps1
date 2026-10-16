@@ -18,19 +18,27 @@ if ($DevelopmentPreview) {
 } elseif (!$evidence.ready_for_alpha_review -or $evidence.dungeon_smoke_passes -lt 2) { throw 'Native game validation is pending. Only explicit -DevelopmentPreview packaging is allowed.' }
 $image = [Drawing.Image]::FromFile((Join-Path $publication 'icon.png'))
 try { if ($image.Width -ne 256 -or $image.Height -ne 256) { throw 'Icon must be 256x256.' } } finally { $image.Dispose() }
-$out = [IO.Path]::GetFullPath($OutputDirectory)
+$out = Join-Path ([IO.Path]::GetFullPath($OutputDirectory)) $version
 New-Item -ItemType Directory -Path $out -Force | Out-Null
 $suffix = if ($DevelopmentPreview) { '-preview' } else { '' }
 $packageName = "GungeonTogether_LAN-$version$suffix-Thunderstore.zip"
 $sourceName = "GungeonTogether_LAN-$version$suffix-source.zip"
 $checksumName = "GungeonTogether_LAN-$version$suffix-SHA256SUMS.txt"
-foreach ($name in @($packageName,$sourceName,$checksumName)) { if (Test-Path -LiteralPath (Join-Path $out $name)) { throw ('Refusing to overwrite release: ' + $name) } }
+$sidecars = @{}
+$sidecars[$releaseNotesName] = Join-Path $publication $releaseNotesName
+$sidecars["VALIDATION-$version.md"] = Join-Path $publication 'VALIDATION.md'
+$sidecars["START-HERE.ru-$version.md"] = Join-Path $publication 'START-HERE.ru.md'
+$sidecars["UPDATE-GITHUB.ru-$version.md"] = Join-Path $publication 'UPDATE-GITHUB.ru.md'
+foreach ($name in (@($packageName,$sourceName,$checksumName) + @($sidecars.Keys))) { if (Test-Path -LiteralPath (Join-Path $out $name)) { throw ('Refusing to overwrite release: ' + $name) } }
 $sourceFiles = @('README.md','README.ru.md','Build-LAN.ps1','Build-Launcher.ps1','Build-Thunderstore.ps1','Test-LAN.ps1','Test-Dungeon.ps1','Test-Profile.ps1','Test-Rendering.ps1','Test-GameBindings.ps1','Test-Display.ps1','Test-Acknowledgements.ps1','Test-Latency.ps1','Test-SpriteVisibility.ps1','GungeonTogether\GungeonTogether.csproj','GungeonTogether\Networking\Players\RemotePlayerAvatar.cs','launcher\Launcher.cs','tests\LanTests.cs','tests\DungeonTests.cs','tests\ProfileTests.cs','tests\RenderingTests.cs','tests\DisplayProfileTests.cs','tests\AcknowledgementTests.cs','tests\TransportLatencyTests.cs','tests\SpriteVisibilityTests.cs','validation\summary.json','validation\latency-031\README.md','validation\latency-031\fifo-high-entropy.txt','validation\latency-031\latest-high-entropy.txt')
 $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'GungeonTogether\Lan') -Filter '*.cs' -File | Where-Object Name -ne 'LanPlugin.cs' | ForEach-Object { 'GungeonTogether\Lan\' + $_.Name })
 $sourceFiles += 'validation\latency-031\native-summary.json'
 $sourceFiles = @($sourceFiles | Where-Object { $_ -notin @('Build-Launcher.ps1','launcher\Launcher.cs') })
 $sourceFiles += @('validation\host-freeze-032\README.md','validation\host-freeze-032\native-summary.json')
+$sourceFiles += @('validation\camera-033\README.md','validation\camera-033\native-summary.json')
 $sourceFiles += @('.gitignore','GungeonTogether.sln')
+$sourceFiles += 'AGENTS.md'
+$sourceFiles += @('Test-Presentation.ps1','tests\PresentationTests.cs','validation\presentation-034\README.md','validation\presentation-034\native-summary.json')
 $publicationSourceFiles = @('README.md','README.ru.md','LICENSE','NOTICE.md','CHANGELOG.md','manifest.json','VALIDATION.md','INSTALL-PROFILES.ru.md','Build-Icon.ps1','UPDATE-GITHUB.ru.md','PUBLISH-THUNDERSTORE.ru.md')
 $publicationSourceFiles += @(Get-ChildItem -LiteralPath $publication -Filter 'RELEASE-NOTES-*.md' -File | Select-Object -ExpandProperty Name)
 $publicationSourceFiles += @(Get-ChildItem -LiteralPath $publication -Filter 'VALIDATION-*.md' -File | Select-Object -ExpandProperty Name)
@@ -60,4 +68,6 @@ $hashes = @(
  ((Get-FileHash -LiteralPath (Join-Path $out $sourceName) -Algorithm SHA256).Hash.ToLowerInvariant() + '  ' + $sourceName)
 )
 $hashes | Set-Content -LiteralPath (Join-Path $out $checksumName) -Encoding ascii
+foreach ($name in $sidecars.Keys) { [IO.File]::Copy($sidecars[$name], (Join-Path $out $name), $false) }
 Get-Item -LiteralPath (Join-Path $out $packageName),(Join-Path $out $sourceName) | Select-Object Name,Length
+Write-Output ('Release folder: ' + $out)

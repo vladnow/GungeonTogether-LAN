@@ -2,21 +2,21 @@
 
 [Русская инструкция](https://github.com/vladnow/GungeonTogether-LAN/blob/main/README.ru.md)
 
-Experimental **two-player co-op for Enter the Gungeon** over LAN or Radmin VPN. Connect using **Host / Join by IPv4**. The host runs native co-op; the client controls a selected second character and renders replicated objects using its own game resources. Both players share the host's camera.
+Experimental **two-player co-op for Enter the Gungeon** over LAN or Radmin VPN. Connect using **Host / Join by IPv4**. The host runs native co-op; the client controls a selected second character and renders replicated objects using its own game resources. During normal gameplay, each screen follows its own player: the host follows player one, and the client follows player two. Native manual camera sequences can temporarily use shared cinematic framing.
 
-**0.3.2 is an early-floor testing alpha. The known fourth-floor Sell Creep layout mismatch remains unresolved and can stop a run. Full campaign completion is not established.** Client audio, effects and some interactions remain incomplete.
+**0.3.4 is an early-floor testing alpha. The known fourth-floor Sell Creep layout mismatch remains unresolved and can stop a run. Full campaign completion is not established.** This update adds the guest's graphical HUD and combat sound-event relay. Some effects and interactions remain incomplete.
 
 ## Install or update
 
-- Both Windows PCs need matching game files and **the same 0.3.2 build**. Built against Steam Enter the Gungeon **2.1.9**.
+- Both Windows PCs need matching game files and **the same 0.3.4 build**. Built against Steam Enter the Gungeon **2.1.9**.
 - Use **BepInExPack EtG 5.4.2101** / BepInEx 5 and a clean manager profile with one networking mod.
 - Install Radmin VPN separately when using a virtual LAN.
 
-When this version is published on Thunderstore, update the mod on both PCs and use **Start Modded**. For a prepared local package, install the loader in the profile, then import `GungeonTogether_LAN-0.3.2-Thunderstore.zip` through **Settings → Import local mod**. The local import may require installing the loader dependency separately.
+When this version is published on Thunderstore, update the mod on both PCs and use **Start Modded**. For a prepared local package, install the loader in the profile, then import `GungeonTogether_LAN-0.3.4-Thunderstore.zip` through **Settings → Import local mod**. The local import may require installing the loader dependency separately.
 
 Remove older LAN DLLs and other GungeonTogether variants from that profile first. Keep backups outside `BepInEx/plugins`. Use separate profiles for LAN and other networking mods. This release contains a Thunderstore package and source; no updated launcher is provided.
 
-**0.3.2 cannot connect to 0.3.1 or earlier peers. Update both PCs.** Creating a package does not publish it. Source is available from [GitHub](https://github.com/vladnow/GungeonTogether-LAN); **Code → Download ZIP** downloads source, not an installable mod.
+**0.3.4 cannot connect to 0.3.3 or earlier peers. Update both PCs.** Creating a package does not publish it. Source is available from [GitHub](https://github.com/vladnow/GungeonTogether-LAN); **Code → Download ZIP** downloads source, not an installable mod.
 
 ## Connect and play
 
@@ -29,7 +29,21 @@ Default port: **TCP 27631**. Allow the game through the firewall for the intende
 
 The guest uses normal movement, aim, fire, roll, reload, interact, blank, item and weapon-switch controls. The host controls pause, map and shared menus. Opening the LAN menu mutes guest input. Losing window focus during an active LAN run does not automatically pause the game; manual host pause remains available.
 
-## Fix in 0.3.2
+## Guest HUD and sound in 0.3.4
+
+The guest's text status box is replaced by a graphical HUD: full/half/empty hearts, armor, blanks, cash, keys, the equipped gun and ammo/magazine counts, reload state, and active item with its charge bar. These values come from the host's player two. Icons are read from the local game; no game assets are included in the mod. This is a custom presentation HUD, not a full replica of every native inventory/menu screen.
+
+Combat sound events (weapons, enemies, objects, character/footstep and voice categories) now travel from the host to the guest, with emitter positions and per-emitter Wwise switches such as weapon type. Playback uses the guest's own game sound banks and volume settings. Local duplicate combat events are suppressed while mirroring. Queues and emitters are bounded; events from an older floor and stale batches are discarded. Music/ambience, RTPC parameters, every looping-sound stop/callback and every modded sound bank are not fully synchronized. The tests keep audio output disabled, so audible balance and completeness still need listening on two PCs.
+
+## Separate cameras retained from 0.3.3
+
+The host camera uses player one's focus instead of averaging both characters. The client receives a separate view around player two. Native room framing can keep the host away from the room edge; manual boss/cinematic camera sequences retain their explicit framing.
+
+Network sprite selection uses the guest view and the guest's reported viewport aspect, rather than the host's screen. Objects around the guest can therefore be transmitted even when they are outside the host view. Deferred native off-screen animation frames are included so their animations continue on the client.
+
+The native shared-screen movement restriction is bypassed during the active LAN run. Wall/pit collision rules remain. This does not make the run two independent campaigns: room sealing, automatic regrouping for combat, floor transitions and other native co-op rules remain shared. Death/ghost/spectator behavior and every cinematic are not fully validated.
+
+## Enemy asset fix retained from 0.3.2
 
 Some enemy sprite collections are embedded inside enemy prefabs and cannot be loaded independently by their tk2d GUID. In 0.3.1, encountering Blobulin/Blobuloid/Blobulon could stop the client and then pause the host with `Missing or incompatible local sprite asset`.
 
@@ -41,7 +55,7 @@ The missing-asset and layout checks remain active. A real mismatch still stops t
 
 The queue/compression improvements from 0.3.1 remain: stale unsent world states are replaced by newer ones, while reliable control messages retain their order. The display buffer is **60 ms**, with dungeon snapshots up to **20 Hz**. There is no client prediction.
 
-The menu's RTT measures the mod's round trip. Its response figure measures guest input to a confirming host snapshot and excludes display interpolation. Neither is a pure Radmin ping or a guarantee. Low FPS, resource loading, congestion and retransmissions can still add delay. **0.3.2 targets the missing-enemy-asset stop; it does not claim a further latency reduction.**
+The menu's RTT measures the mod's round trip. Its response figure measures guest input to a confirming host snapshot and excludes display interpolation. Neither is a pure Radmin ping or a guarantee. Low FPS, resource loading, congestion and retransmissions can still add delay. **0.3.4 adds guest HUD/audio presentation and retains the camera/enemy-asset fixes; it does not claim a further input-latency reduction.**
 
 Historical constrained-network measurements belong to 0.3.1 and are retained in `publication/VALIDATION-0.3.1.md` and [the transport evidence](https://github.com/vladnow/GungeonTogether-LAN/blob/main/validation/latency-031/README.md).
 
@@ -61,7 +75,7 @@ The client temporarily imports the host's generation state. Normal disconnect re
 
 - **Fourth-floor Sell Creep map mismatch remains unresolved.** Geometry checks stop mismatched runs.
 - A complete natural campaign, all bosses/items/abilities, normal boss/elevator progression, endings, long runs and modpacks remain unverified.
-- Client combat audio, some materials/effects, beams, secret-wall changes and shop/dialogue UI remain incomplete. Client price text is absent. The shop stock/highlight checks recorded for 0.3.1 do not establish complete shopping support.
+- Guest sound/HUD coverage has the limits above. Some materials/effects, beams, secret-wall changes and shop/dialogue UI remain incomplete. Client price text is absent. The shop stock/highlight checks recorded for 0.3.1 do not establish complete shopping support.
 - A disconnected run pauses. Return to the foyer and create a new session; active-run reconnection and host migration are not implemented.
 - Native player/foyer startup warnings have been observed. This release does not claim that all freezes or startup errors are resolved.
 
@@ -76,5 +90,7 @@ Keep **both players'** `BepInEx/LogOutput.log` files before launching again. For
 ## Source and license
 
 Based on [GungeonTogether by lam and contributors](https://github.com/llamerrr/GungeonTogether), upstream commit `52be4b636a07f28483ae4e17b16ad471065e89ce`. **Copyright (c) 2025 lam.** The original MIT notice is preserved; LAN changes use the same license. This is an unofficial derivative.
+
+Prepared releases use a separate `release/<version>/` folder containing the packages, checksums and standalone release notes. `Build-Thunderstore.ps1` creates this layout and refuses existing version files.
 
 Build with a .NET SDK and your local game/BepInEx libraries using `Build-LAN.ps1` with `GamePath` and `BepInExCorePath`. Game resources, game assemblies and BepInEx binaries are excluded from distribution. Developed with AI assistance.

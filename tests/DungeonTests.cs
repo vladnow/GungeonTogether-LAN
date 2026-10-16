@@ -19,6 +19,7 @@ internal static class DungeonTests
             w.Write(0f); w.Write(0f); w.Write(3f); w.Write(1f); w.Write(100); w.Write(false);
             w.Write(currency); w.Write(keys); w.Write(blanks); w.Write(gun); w.Write(active); w.Write(cooldown);
             for (int i = 0; i < 7; i++) w.Write(false);
+            w.Write(3f); w.Write(-1); w.Write(-1); w.Write(0); w.Write(0); w.Write(false);
             w.Write(0);
         });
     }
@@ -28,6 +29,16 @@ internal static class DungeonTests
             RemoteInput input = new RemoteInput { Epoch = 1, Sequence = 7, MoveX = 0.5f, MoveY = -1, AimX = 1, Buttons = (1UL << 8) | (1UL << 9) | (1UL << 11) };
             RemoteInput decoded = RemoteInput.Decode(input.Encode());
             Assert(decoded.Sequence == 7 && decoded.MoveX == 0.5f && decoded.MoveY == -1 && decoded.AimX == 1 && decoded.Buttons == input.Buttons, "remote native-controller payload round trip");
+            input.ViewAspect = 3;
+            Assert(RemoteInput.Decode(input.Encode()).ViewAspect == 3, "ultrawide guest viewport survives input round trip independently of host viewport");
+            foreach (float invalid in new float[] { 0, -1, 0.24f, 8.01f, float.NaN, float.PositiveInfinity }) {
+                input.ViewAspect = invalid; Reject(delegate { RemoteInput.Decode(input.Encode()); }, "invalid guest viewport rejected: " + invalid);
+            }
+            input.ViewAspect = RemoteInput.MinViewAspect;
+            Assert(RemoteInput.Decode(input.Encode()).ViewAspect == RemoteInput.MinViewAspect, "minimum supported viewport aspect allowed");
+            input.ViewAspect = RemoteInput.MaxViewAspect;
+            Assert(RemoteInput.Decode(input.Encode()).ViewAspect == RemoteInput.MaxViewAspect, "maximum supported viewport aspect allowed");
+            input.ViewAspect = RemoteInput.DefaultViewAspect;
             input.MoveX = 2; Reject(delegate { RemoteInput.Decode(input.Encode()); }, "out-of-range movement rejected");
             input.MoveX = float.NaN; Reject(delegate { RemoteInput.Decode(input.Encode()); }, "NaN input rejected");
             input.MoveX = 0; input.Buttons = 1UL << 60; Reject(delegate { RemoteInput.Decode(input.Encode()); }, "unknown action bits rejected");
