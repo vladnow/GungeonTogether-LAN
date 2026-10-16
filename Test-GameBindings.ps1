@@ -2,7 +2,7 @@ param([Parameter(Mandatory=$true)][string]$GamePath,[Parameter(Mandatory=$true)]
 $ErrorActionPreference = 'Stop'
 Add-Type -Path (Join-Path $BepInExCorePath 'Mono.Cecil.dll')
 $managed = Join-Path $GamePath 'EtG_Data\Managed'
-$runtime = Join-Path $PSScriptRoot 'bin\GungeonTogether.LAN-0.3.4-alpha.dll'
+$runtime = Join-Path $PSScriptRoot 'bin\GungeonTogether.LAN-0.3.5-alpha.dll'
 $resolver = New-Object Mono.Cecil.DefaultAssemblyResolver
 $resolver.AddSearchDirectory($managed)
 $resolver.AddSearchDirectory($BepInExCorePath)

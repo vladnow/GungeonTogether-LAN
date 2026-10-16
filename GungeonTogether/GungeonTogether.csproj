@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net35</TargetFramework>
-    <AssemblyName>GungeonTogether.LAN-0.3.4-alpha</AssemblyName>
-    <Version>0.3.4</Version>
+    <AssemblyName>GungeonTogether.LAN-0.3.5-alpha</AssemblyName>
+    <Version>0.3.5</Version>
     <LangVersion>7.3</LangVersion>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
