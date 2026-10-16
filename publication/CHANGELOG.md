@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.4
+
+- Replace the guest text box with a graphical, host-authoritative HUD using local heart/armor/blank/cash/key and equipped gun/item icons; include max health, magazine capacity/count, reload and item-charge state.
+- Add bounded combat sound-event batches with spatial emitters and per-source Wwise switches. Keep local volume settings and suppress duplicate local combat cues while mirroring.
+- Reject duplicate, old-floor and stale sound batches; clear sources during transitions and session teardown. Add sound counters to network diagnostics.
+- Require 0.3.4 on both peers. Preserve separate cameras and existing synchronization checks; full campaign and audible two-PC coverage remain unverified.
+- Keep silent, windowed diagnostics and separate release/0.3.4/ artifacts with standalone release notes. No launcher update.
+
+## 0.3.3
+
+- Added per-player camera focus during ordinary LAN gameplay: host/player one and client/player two. Native manual camera framing is retained for scripted sequences.
+- Select network sprites using the guest's virtual camera and bounded viewport aspect, including objects outside the host's screen.
+- Read native deferred off-screen sprite-animation updates before capturing geometry.
+- Bypass the native shared-screen movement boundary while retaining other movement restrictions and collision results.
+- Require 0.3.3 on both peers; older input payloads do not include the guest viewport aspect.
+- Retain the 0.3.2 enemy asset loader and 0.3.1 transport/interpolation changes. Full campaigns and complete death/cinematic coverage remain unverified.
 ## 0.3.2
 
 - Fixed resolution of native enemy sprite collections embedded in enemy prefabs, including Blobulin/Blobuloid/Blobulon. Missing collections can now load their owning prefab dependencies by native enemy GUID.

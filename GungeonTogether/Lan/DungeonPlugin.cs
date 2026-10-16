@@ -8,7 +8,7 @@ using GungeonTogether.Networking;
 
 namespace GungeonTogether.Lan
 {
-    [BepInPlugin("com.gungeontogether.lan", "Gungeon Together LAN Alpha", "0.3.2")]
+    [BepInPlugin("com.gungeontogether.lan", "Gungeon Together LAN Alpha", "0.3.4")]
     [BepInIncompatibility("com.llamerrr.gungeontogether")]
     public sealed partial class DungeonPlugin : BaseUnityPlugin
     {
@@ -19,6 +19,9 @@ namespace GungeonTogether.Lan
         private string ip, bind, port, code, fingerprint, error = "";
         private Rect window = new Rect(36, 36, 620, 586);
         private bool visible = true;
+        private readonly ClientHud clientHud = new ClientHud();
+        private readonly bool presentationProbe = Array.IndexOf(Environment.GetCommandLineArgs(), "--gt-presentation-probe") >= 0;
+        private bool hudErrorLogged;
         private RemotePlayerAvatar foyerAvatar;
         private float nextPosition;
         private uint foyerSequence;
@@ -76,7 +79,7 @@ namespace GungeonTogether.Lan
             if (smokeRole != null) {
                 Foyer.DoIntroSequence = false; Foyer.DoMainMenu = false; visible = false; smokeDeadline = Time.realtimeSinceStartup + 150;
             }
-            harmony = new Harmony("com.gungeontogether.lan.dungeon-0.3.2");
+            harmony = new Harmony("com.gungeontogether.lan.dungeon-0.3.4");
             try { harmony.PatchAll(typeof(DungeonPlugin).Assembly); }
             catch (Exception ex) {
                 if (IsSmoke) { Log("GT_DUNGEON_SMOKE_FAIL: patch initialization: " + ex); Application.Quit(); }
@@ -103,7 +106,7 @@ namespace GungeonTogether.Lan
             transport.PacketReceived += Receive;
             transport.ConnectedEvent += delegate { ClearAvatar(); foyerSequence = 0; if (Session != null) Session.Dispose(); Session = new DungeonSession(transport, gameObject, Log); if (!transport.IsHost) Session.ChooseGuest(guestChoice); Log("GT_DUNGEON_CONNECTED"); };
             transport.DisconnectedEvent += delegate { ClearAvatar(); if (Session != null) Session.Disconnected(); Log(transport.Status); };
-            Log("GT_DUNGEON_READY 0.3.2; buffered rendering, character selection; game=" + fingerprint);
+            Log("GT_DUNGEON_READY 0.3.4; buffered rendering, character selection; game=" + fingerprint);
             Log("GT_PROFILE_MODE " + (UsesSeparateProfile ? "LAN" : "NORMAL"));
             RuntimeDisplayRestore.Attach(gameObject, Log);
         }
@@ -361,6 +364,7 @@ namespace GungeonTogether.Lan
 
         private void OnDestroy()
         {
+            clientHud.Dispose();
             if (menuPlayer != null) menuPlayer.ClearInputOverride("GT_Menu");
             if (Session != null) Session.Dispose();
             if (transport != null) transport.Dispose();

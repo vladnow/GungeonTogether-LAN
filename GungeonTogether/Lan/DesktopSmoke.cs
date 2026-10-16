@@ -51,6 +51,7 @@ namespace GungeonTogether.Lan
 
         private void LateUpdate()
         {
+            AudioListener.pause = true; AudioListener.volume = 0;
             Cursor.lockState = CursorLockMode.None; Cursor.visible = true;
             if (Time.realtimeSinceStartup < nextCheck) return;
             nextCheck = Time.realtimeSinceStartup + 1;
