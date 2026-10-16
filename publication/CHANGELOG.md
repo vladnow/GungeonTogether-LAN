@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.3.2
+
+- Fixed resolution of native enemy sprite collections embedded in enemy prefabs, including Blobulin/Blobuloid/Blobulon. Missing collections can now load their owning prefab dependencies by native enemy GUID.
+- Preserved collection GUID/table checks and the stop on genuinely incompatible resources; no invisible-enemy fallback.
+- Added bounded prefab-owner discovery and per-session dependency caching. The network handshake now requires 0.3.2 on both peers.
+- Reproduced the 0.3.1 missing-Blobulin stop before testing the fix. Current bounded native evidence is in VALIDATION.md; full-run readiness is not claimed.
+- Updated the Thunderstore/source package and public troubleshooting instructions. No launcher update is provided. Existing latency improvements remain; further latency reduction is not claimed.
+## 0.3.1 — state freshness and client stability alpha
+
+- Replace pending world/foyer state with newer state while preserving reliable control-message order. Compress large replaceable packets when useful and bound pending stale data.
+- Reduce timestamped display interpolation from 120 ms to 60 ms; retain up to 20 dungeon snapshots per second. Add mod RTT and client input-to-host-snapshot acknowledgement readings.
+- In a controlled real-socket test with an incompressible 16 KiB / 30 Hz workload and a 128 KiB/s bottleneck, p95 delivered-state age changed from 2063 ms under FIFO to 341 ms under latest-state delivery. This is not a Radmin or running-dungeon result.
+- Add guest cash, keys, blanks, weapon/item names, active-item state, ghost/death and run-end HUD information.
+- Update mirrored client rooms without native gameplay room-entry events; suppress client collision simulation and independent boss intros while mirroring. Reduce repeated scene scans.
+- Prevent native focus-loss automatic pause during an active LAN run; preserve manual host pause.
+- Draw the menu cursor above controls. Inherit initial display preferences once and refresh the normal startup viewport/UI with bounded work.
+- Add display-profile, acknowledgement, latency and sprite-visibility checks. The exact runtime passed two bounded local two-process early-floor scenarios; see VALIDATION.md for measurements and remaining visual coverage. Complete item-outline/material fidelity is not claimed.
+- Require both peers to update: 0.3.0 and older peers are incompatible.
+- Keep the unresolved fourth-floor Sell Creep layout mismatch and geometry barrier explicit. No full-campaign or physical-PC/Radmin validation is claimed.
+
 ## 0.3.0 — movement and character alpha
 
 - Interpolate timestamped foyer avatars and client dungeon sprites/camera with a 120 ms buffer. Increase dungeon snapshots to up to 20 Hz.

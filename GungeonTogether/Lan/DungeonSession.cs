@@ -18,6 +18,9 @@ namespace GungeonTogether.Lan
         private uint inputSequence, snapshotSequence, lastSnapshot;
         private float deadline, nextInput, nextSnapshot;
         private bool loadingCommand;
+        private readonly InputAcknowledgements inputAcks = new InputAcknowledgements();
+        private float nextNetworkLog;
+        public double InputLatencyMs { get { return inputAcks.Milliseconds; } }
         private int hostCharacter = 1;
         public int GuestCharacter { get; private set; }
         public bool GuestChoiceReceived { get; private set; }
@@ -69,6 +72,7 @@ namespace GungeonTogether.Lan
         private void SetGenerating()
         {
             Phase = RunPhase.Generating; deadline = Time.realtimeSinceStartup + 120;
+            transport.InactivityTimeout = 120; inputAcks.Clear();
             Status = "Generating shared dungeon (epoch " + epoch + ")";
             if (controls != null) controls.Enabled = false;
             BraveTime.SetTimeScaleMultiplier(1f, timeOwner);
@@ -83,7 +87,8 @@ namespace GungeonTogether.Lan
             epoch++; scene = newScene;
             generationContext = NativeWorld.ExportGenerationContext();
             seed = (int)(((long)seed * 1103515245 + 12345) % 999999998) + 1;
-            GameManager.Instance.InitializeForRunWithSeed(seed);
+            // Dungeon.GetDungeonSeed initializes the seed once the native target
+            // prefab exists. Reward tables are unavailable during scene teardown.
             sprites.Dispose(); sprites = new SpriteReplication(); hash = "";
             SetGenerating();
             log("GT_DUNGEON_TRANSITION epoch=" + epoch + " scene=" + scene);
@@ -99,6 +104,7 @@ namespace GungeonTogether.Lan
                 if (Phase == RunPhase.Generating && !gm.IsLoadingLevel && !gm.IsFoyer && gm.Dungeon != null && !Dungeonator.Dungeon.IsGenerating && gm.PrimaryPlayer != null && gm.GetLastLoadedLevelDefinition() != null && gm.GetLastLoadedLevelDefinition().dungeonSceneName == scene)
                     LevelLoaded();
                 if (Phase != RunPhase.Running) return;
+                transport.InactivityTimeout = 30;
                 if (gm.IsLoadingLevel) return;
                 if (gm.IsFoyer) { Fail("The run returned to the foyer; reconnect before starting another run."); return; }
                 if (IsHost) {
@@ -106,14 +112,21 @@ namespace GungeonTogether.Lan
                     if (Time.realtimeSinceStartup >= nextSnapshot) {
                         nextSnapshot = Time.realtimeSinceStartup + 0.05f;
                         WorldSnapshot snapshot = sprites.Capture(epoch, ++snapshotSequence, Send);
-                        Send(snapshot.Encode());
+                        snapshot.InputSequence = controls.LastInputSequence;
+                        transport.SendLatest(snapshot.Encode());
                     }
                 } else {
                     sprites.SuppressLocalSimulation();
                     if (Time.realtimeSinceStartup >= nextInput) {
                         nextInput = Time.realtimeSinceStartup + 1f / 60f;
-                        Send(CaptureInput().Encode());
+                        RemoteInput input = CaptureInput();
+                        inputAcks.Sent(input.Sequence, Time.realtimeSinceStartup);
+                        Send(input.Encode());
                     }
+                }
+                if (Time.realtimeSinceStartup >= nextNetworkLog) {
+                    nextNetworkLog = Time.realtimeSinceStartup + 5;
+                    log("GT_NETWORK role=" + (IsHost ? "host" : "client") + " rttMs=" + transport.RoundTripMilliseconds.ToString("0") + " responseMs=" + InputLatencyMs.ToString("0") + " pendingBytes=" + transport.PendingBytes + " pendingMs=" + transport.OldestPendingMilliseconds.ToString("0") + " replaced=" + transport.ReplacedFrames);
                 }
             } catch (Exception ex) { Fail(ex.Message); }
         }
@@ -204,7 +217,7 @@ namespace GungeonTogether.Lan
                 else if (type == DungeonMessage.Collection) { CollectionInfo info = CollectionInfo.Decode(bytes); if (info.Epoch == epoch) sprites.Define(info); }
                 else if (type == DungeonMessage.Snapshot) {
                     WorldSnapshot snapshot = WorldSnapshot.Decode(bytes);
-                    if (snapshot.Epoch == epoch && Phase == RunPhase.Running && Wire.Newer(snapshot.Sequence, lastSnapshot)) { sprites.Enqueue(snapshot); lastSnapshot = snapshot.Sequence; }
+                    if (snapshot.Epoch == epoch && Phase == RunPhase.Running && Wire.Newer(snapshot.Sequence, lastSnapshot)) { inputAcks.Observe(snapshot.InputSequence, Time.realtimeSinceStartup); sprites.Enqueue(snapshot); lastSnapshot = snapshot.Sequence; }
                 } else throw new IOException("Host sent an unsupported packet.");
             }
         }
@@ -257,6 +270,7 @@ namespace GungeonTogether.Lan
             BraveTime.SetTimeScaleMultiplier(1f, timeOwner);
             if (GameManager.HasInstance) foreach (PlayerController player in GameManager.Instance.AllPlayers) if (player != null) player.ClearInputOverride("GT_LevelSync");
             Phase = RunPhase.Lobby;
+            transport.InactivityTimeout = 30;
         }
     }
 }

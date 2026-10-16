@@ -1,56 +1,54 @@
-# Validation of 0.3.0 alpha
+# Validation of 0.3.2 alpha
 
-Date: 2026-10-15. Local alpha validation; this does not establish a full campaign or physical-PC/Radmin playthrough.
+Date: 2026-10-16.
 
-**Known blocker: initial seed 299027071 reproduces a fourth-floor layout mismatch. The host/client run stops at the geometry barrier. This alpha is suitable for early-floor testing, not a verified full run. Fifth-floor testing was not reached.**
+**Runtime SHA-256: `761a6ab788f57457f68af082a51fa3cde8c2bcaf559df9fa0f53c2b144985d5f`.** Native cases below used this exact DLL. Historical results belong to their original binaries and remain separate in VALIDATION-0.3.1.md and VALIDATION-0.3.0.md.
 
-Runtime SHA-256: `c760078ddd8d271dc28194fed54ae9f2771eced45001ac240d428324409a9d99`.
+**Known blocker: the fourth-floor Sell Creep layout mismatch is unresolved. This is an early-floor alpha, not a confirmed complete campaign.**
 
-## Build and background checks
+## Confirmed failure and change
 
-- Compiled against actual Steam Enter the Gungeon 2.1.9 / Unity 2017.4.27 / BepInEx 5.4.21 libraries, without game stubs. No compiler warnings or errors.
-- 108 automated checks: 28 real-loopback LAN transport, 23 dungeon protocol, 19 save-profile and 38 interpolation/character checks.
-- 15 direct Harmony targets resolve uniquely to managed methods in the installed game assemblies.
-- Interpolation tests cover 60/144 FPS, batched delivery, independent clocks, stale packets, sequence wraparound and stalls. A 100 ms buffer failed the tested jitter scenario; the final 120 ms buffer passed.
-- Launcher file-fixture checks passed and its embedded DLL hash matches the runtime above. These do not replace testing a complete fresh installation from the launcher.
+A real 0.3.1 profile log contained two stops: the client could not resolve BlobulinSpriteCollection or BlobulonSpriteCollection, sent Stop, and the host paused/opened the LAN menu. Around those stops, mod RTT was approximately 16–33 ms and the application queue was generally empty. A screenshot independently showed the Blobulon failure. This identifies these specific stops; it does not establish that every reported freeze has the same cause.
 
-## Native two-process tests
+The old 0.3.1 DLL was run in two private local game copies. After the initial move/fire/transition smoke test, the host explicitly spawned native Blobulin, Blobuloid and Blobulon. The client lacked the collections, stopped on **BlobulinSpriteCollection**, and the host received the same friend-stopped message. This reproduces the original failure before the change.
 
-The exact DLL above passed five separate silent, windowed tests in private game copies. Each used two local processes and external BepInEx roots. The game confirmed fullscreen=false, 800x600, cursor=None, background execution and a nonforeground diagnostic window. No Computer Use interaction was used for this final series.
+Native source inspection showed that these sprite collections are embedded prefab dependencies rather than independently loadable BraveResources/tk2d assets. The three enemy names do not map reliably to the collection names: guessing from the name is insufficient. The change transmits the owning native enemy GUID, loads the local enemy prefab dependencies when needed, then retains the original collection GUID and ordered-table fingerprint verification. Prefabs are loaded as assets; no extra client enemy instance is created by the loader.
 
-Every guest character passed: different foyer avatars and remote movement rendering, matching first/second-floor geometry, native player-two identity and starting gun on both floors, remote movement, native projectile ownership, damage to an AI-disabled Bullet Kin, client sprite interpolation and a forced native LoadCustomLevel("tt5") transition. The host's first player was Pilot; the client's original foyer hero was Hunter. The client placeholders were aligned with the host's character for generation.
+## Automated checks
 
-| Guest | First-floor hash | Second-floor hash | Native exceptions |
-| --- | --- | --- | --- |
-| cultist | `93d0210570c3129b0a44e01a4c0ffe6d3d97c2b9b82eb973c9affb083cf13775` | `c60821a189b648f703e3da52752f95a1b590fe72107bd1438720d17910a1107f` | 0 |
-| pilot | `963e95f3a1b37a48c1b56b09fe0cf1957ba2fed4af618ccaf4bd8c475ab60d14` | `279dd8916da5f7bc9384c14fc4b3fbdd78a0e1694be666ec2ac3450370df1604` | 0 |
-| marine | `b344f5bca8ab3e46aaeb24bdaec264998ac1f32a65f7314d5bee22dce95f2356` | `934bbf9ba697b249e5f4c049e1306abe1944a719b0ef9684a6619b1742db4c7b` | 0 |
-| convict | `2169c6231258022a36b0cb5520717b34fa8ba457cd6106ae5d07198d36792472` | `392febd3eca7de5e5ee12f91a94a23cf8a035e2b6254fcc8267845c1d8618c99` | 0 |
-| hunter | `c6daecc5a0f415fe3aee56f3f71b2594c8aea429170e44238ef537b3c5d9b12e` | `97ec2b9f5256798cf2286ce387bf05aa0e701193e67b7b4401bb5a25f1028187` | 0 |
+The current source passed **224 checks**: transport 30, dungeon protocol 75, save-profile policy 19, rendering/characters 38, display migration 9, input acknowledgements 9, sprite visibility/material descriptors 20, and constrained transport 24. Another **20 managed Harmony targets** resolved uniquely against the installed game libraries. Compilation used the installed Steam game assemblies and BepInEx 5 references.
 
-An additional two-process run with Hunter continued past the second floor. A private diagnostic driver used the game's actual next-floor definitions and LoadCustomLevel, without modifying the runtime DLL. The third floor passed an identical layout hash, two native players, retained guest identity/gun and current-floor snapshots on the client:
+New checks cover optional/exact enemy dependencies, invalid identifiers, the previous collection payload without its new dependency field, and rejection of a 0.3.1 peer before new wire messages are used. Existing transport/interpolation/visibility safeguards passed. These checks alone do not prove native gameplay.
 
-| Main floor | Scene | Matching host/client hash |
+## Native game cases
+
+Two successful scenarios each used two local game processes and the exact hash above:
+
+| Case | Guest | Native evidence |
 | --- | --- | --- |
-| 3 | `tt_mines` | `35888b0ab6bbb23df710de80a29ee0f1d045ffe612122e50bd0d273489bd958e` |
+| Missing enemy assets | Hunter | Matching floor 1/2 barriers, remote movement/fire, native projectile damage to an AI-disabled Bullet Kin, forced transition to tt5; three host-spawned blob enemies rendered in three observed client frames |
+| Enemy assets and room entries | Pilot | Same base smoke coverage; native blob prefabs spawned in a generated NORMAL room, all three client sprite meshes/textures/animations checked in three frames; actual host/client PNGs inspected; native death damage invoked, followed by six additional NORMAL-room entries |
 
-The fourth floor then failed the geometry check. Rooms differed despite matching initial generation context and the same selected native flow. Attempts to isolate the deferred layout random stream did not resolve the mismatch and were removed from this release. Its cause remains unresolved. These checks do not clear every room or prove all interactions are synchronized.
+The extended case includes **four named combat rooms and two unnamed NORMAL rooms**, using native WarpToPoint/ForceChangeRoom with invulnerable players. These are artificial room entries, not natural walking or six cleared fights. The three explicit blobs had AI disabled for stable rendering checks. Other room simulation remained native. Invoking native death damage exercises callbacks but does not prove every split/death outcome separately.
 
-Menu screenshots were saved by the game and inspected locally. They establish actual rendering at the tested resolution; keyboard/controller navigation, every resolution and live two-PC interactions are not comprehensively tested.
+The client continued receiving advancing world snapshots through the room sequence. An isolated negative native test supplied the correct enemy dependency but a wrong sprite-table fingerprint; resolution still rejected it. Both production sessions remained Running until intentional shutdown. There were no runtime exceptions in these successful logs. Stopping the host afterward produces an expected client disconnect/stop.
 
-The earlier failing Pilot seed 299027071 was reproduced. Rooms and prerequisites matched while procedural corridor cell types differed. The native RobotDave generator uses global random state during room application, which yields between rooms. The final fix scopes Unity and generation random state per room using floor seed and coordinates, then restores the surrounding state. The same formerly failing seed passed in the final Pilot case. Geometry checks remain enabled. An experimental room-list sort did not fix the failure and was removed.
+Two exploratory diagnostic runs were discarded: an observer plugin still referenced the old runtime assembly, and another observer looked up a blob after the host had killed it. The observers were corrected and the same production DLL was retested successfully. These observer failures are not counted as passing cases.
 
-Six normal save/backup/options files retained their pre-test SHA-256 values. All game-test writes used private copied game/save directories. Save-profile policy for ordinary play was not changed by these features.
+A private observational latency sample for the Hunter direct-loopback case recorded 1,727 input-to-presented acknowledged-source observations: mean 86.743 ms, p95 114.697 ms. Acknowledgement receipt had mean 26.313 ms and p95 60.179 ms over 1,752 observations. This includes the existing 60 ms display buffer and sparse instrumentation. It is **not physical two-PC/Radmin evidence, a measured improvement over 0.3.1, or a response guarantee**. Cold synchronous asset loading can still cause a short hitch.
 
-## Remaining limits
+All game tests were silent and windowed at 800×600, with WS_EX_NOACTIVATE, unconstrained cursor and background simulation. No Computer Use was used. Nine normal save-directory files retained their hashes. Test processes were stopped after evidence collection. Private game copies, logs, saves, screenshots and observer binaries remain outside publication packages; source includes only a sanitized summary.
 
-- A fourth-floor geometry mismatch is a known blocker. The fifth floor was not reached; no full-run readiness is claimed.
-- The test enemy AI was disabled; later floors were loaded by native commands. These are bounded smoke tests, not a live co-op playthrough, clearing every room or a boss/elevator test.
-- Two physical PCs/Radmin, sustained packet loss, long runs, all abilities/items, revival, every boss, special endings and modpacks remain unverified.
-- Client combat audio, some materials/effects, beams, secret-wall tile changes, shop/dialogue UI and active-run reconnection remain incomplete.
-- A 120 ms interpolation delay improves presentation but adds latency. There is no client prediction; long stalls and native co-op distance limits can still cause corrections.
-- Native base-game warnings remain in raw logs. Do not interpret a passed smoke marker as proof that every logged warning is resolved.
-- A separate final-build Pilot attempt ended with an unexpected process exit; its logs also showed connection refusals. The failed attempt was retained privately and rerun; its cause is unresolved. A successful retry does not establish startup stability.
-- ZIP import through the actual mod-manager UI and a fresh manual launcher installation were not performed in this series. Archives and embedded runtime are verified separately.
+## Distribution and limits
 
-Private raw logs, game screenshots, game assets and game/BepInEx assemblies are excluded from distributable packages. MIT attribution is preserved. No public upload was made by this validation step.
+The release contains a Thunderstore ZIP and a source ZIP. No updated launcher is built or included. Both PCs require **0.3.2**; old peers are rejected. The package builder checks manifest/runtime/validation agreement and preserves older release archives. A package inspection is distinct from an actual manager ZIP import or public upload.
+
+- Fourth-floor Sell Creep map mismatch remains unresolved; full natural campaign completion is unverified.
+- Two physical PCs over Radmin, all enemies/items/abilities, natural boss/elevator progression, endings, long sessions and modpacks are not covered by these tests.
+- The fix supports enemy collections with a discoverable native prefab owner. Unknown assets or real table mismatches still stop the session. This is not a promise that every missing-asset stop is resolved.
+- Complete client audio, effects/materials, beams, secret-wall changes and shop/dialogue UI are incomplete. Historical stock/highlight evidence does not establish complete shopping support.
+- Display interpolation remains 60 ms; client prediction is absent. Further latency reduction is not claimed.
+- Ordinary fullscreen startup, cursor hover and a fresh actual manager ZIP import were not separately tested in this iteration.
+- Active-run reconnection and host migration remain unsupported. Return to the foyer after a fault.
+
+MIT attribution is preserved. Game assets/assemblies, BepInEx binaries and personal diagnostic logs are excluded. No upload or public availability is established by this report.

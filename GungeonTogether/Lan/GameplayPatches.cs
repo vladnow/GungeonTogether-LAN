@@ -35,7 +35,8 @@ namespace GungeonTogether.Lan
         {
             private static bool Prefix(GameManager __instance)
             {
-                if (!Smoke) return true;
+                DungeonSession session = Session;
+                if (!Smoke && (session == null || !session.InRun || session.Phase == DungeonSession.RunPhase.Fault)) return true;
                 AccessTools.Field(typeof(GameManager), "m_applicationHasFocus").SetValue(__instance, true); return false;
             }
         }
@@ -185,27 +186,32 @@ namespace GungeonTogether.Lan
         [HarmonyPatch(typeof(GameManager), "LoadNextLevelAsync_CR")]
         private static class Transition
         {
-            private static void Prefix(GameLevelDefinition __0)
-            { DungeonSession session = Session; if (session != null && __0 != null) session.HostLevelLoading(__0.dungeonSceneName); }
+            private static bool Prefix(GameLevelDefinition __0, ref System.Collections.IEnumerator __result)
+            {
+                DungeonSession session = Session;
+                if (session != null && !session.CanClientLoadLevel) { __result = EmptyTransition(); return false; }
+                if (session != null && __0 != null) session.HostLevelLoading(__0.dungeonSceneName);
+                return true;
+            }
         }
+        private static System.Collections.IEnumerator EmptyTransition() { yield break; }
         [HarmonyPatch(typeof(GameManager), "LoadCustomLevel")]
         private static class BeforeCustomTransition
         {
-            private static void Prefix(string __0)
-            { DungeonSession session = Session; if (session != null) session.HostLevelLoading(__0); }
+            private static bool Prefix() { return Session == null || Session.CanClientLoadLevel; }
         }
         [HarmonyPatch(typeof(GameManager), "LoadNextLevel")]
         private static class BeforeNormalTransition
         {
-            private static void Prefix(GameManager __instance)
-            {
-                DungeonSession session = Session;
-                if (session == null || !session.IsHost || !session.InRun) return;
-                FieldInfo index = typeof(GameManager).GetField("nextLevelIndex", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                int next = (int)index.GetValue(__instance);
-                if (__instance.dungeonFloors != null && next >= 0 && next < __instance.dungeonFloors.Count)
-                    session.HostLevelLoading(__instance.dungeonFloors[next].dungeonSceneName);
-            }
+            // The async observer above receives the resolved native definition,
+            // including injected/secret levels, after session statistics merge.
+            private static bool Prefix() { return Session == null || Session.CanClientLoadLevel; }
+        }
+        [HarmonyPatch(typeof(GameManager), "DelayedLoadNextLevel")]
+        private static class BeforeDelayedTransition
+        {
+            private static bool Prefix()
+            { return Session == null || Session.CanClientLoadLevel; }
         }
         [HarmonyPatch(typeof(SaveManager), "Init")]
         private static class SeparateProfile

@@ -1,0 +1,67 @@
+{
+  "version": "0.3.2",
+  "date": "2026-10-16",
+  "runtime_sha256": "761a6ab788f57457f68af082a51fa3cde8c2bcaf559df9fa0f53c2b144985d5f",
+  "old_0_3_1_failure_reproduced": true,
+  "reported_missing_collections": [
+    "BlobulinSpriteCollection",
+    "BlobulonSpriteCollection"
+  ],
+  "new_native_cases": [
+    {
+      "scenario": "fixed-032-hunter-clean",
+      "character": "Hunter",
+      "runtime_sha256": "761a6ab788f57457f68af082a51fa3cde8c2bcaf559df9fa0f53c2b144985d5f",
+      "peer_process_passes": 2,
+      "matching_floor_barriers": [
+        "1:00191a34d1b69f5dda433ffb187b037d4fac544d1ac2e052321ebfd2ed297ac2",
+        "2:a3a41793fa3bb5ecbcdc3415c61daf3f5b13c84fe1b8f3bac68da7cbb9143c3d"
+      ],
+      "three_blob_enemies": true,
+      "observed_client_checks": 9,
+      "additional_normal_room_entries": 0,
+      "wrong_sprite_table_rejected": false,
+      "artificial_controls": true,
+      "artificial_enemy_spawns": true,
+      "AI_disabled_for_three_spawns": true,
+      "artificial_native_damage_and_death": false,
+      "natural_walking": false,
+      "natural_room_clears": false,
+      "actual_PNGs_visually_verified": false
+    },
+    {
+      "scenario": "fixed-032-pilot-rooms-clean",
+      "character": "Pilot",
+      "runtime_sha256": "761a6ab788f57457f68af082a51fa3cde8c2bcaf559df9fa0f53c2b144985d5f",
+      "peer_process_passes": 2,
+      "matching_floor_barriers": [
+        "1:401177042ee9e5345f8ecc9e7206cd1b093d97f7ae3c4216b5f3e34495a63a78",
+        "2:8e0a46c3251e79d39d1d6a496700a3fc4cca32e28e023ad30ded8a7b4e4c722e"
+      ],
+      "three_blob_enemies": true,
+      "observed_client_checks": 9,
+      "additional_normal_room_entries": 6,
+      "wrong_sprite_table_rejected": true,
+      "artificial_controls": true,
+      "artificial_enemy_spawns": true,
+      "AI_disabled_for_three_spawns": true,
+      "artificial_native_damage_and_death": true,
+      "natural_walking": false,
+      "natural_room_clears": false,
+      "actual_PNGs_visually_verified": true
+    }
+  ],
+  "additional_room_note": "Six category NORMAL room entries in the extended case; four named combat rooms and two unnamed rooms, using artificial invulnerable warps.",
+  "native_mismatch_guard_verified": true,
+  "test_audio": "disabled",
+  "test_windows": "800x600 windowed, WS_EX_NOACTIVATE, cursor None, background simulation",
+  "computer_use": false,
+  "normal_save_files_unchanged": 9,
+  "physical_pcs_radmin_tested": false,
+  "full_campaign_tested": false,
+  "discarded_diagnostic_attempts": [
+    "Observer plugin referenced the prior runtime assembly; rebuilt observer and reran.",
+    "Observer queried a blob proxy after the host killed it; moved the check earlier and reran."
+  ],
+  "private_game_assets_logs_and_observers_distributed": false
+}

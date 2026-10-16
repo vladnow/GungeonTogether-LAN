@@ -7,6 +7,7 @@ namespace GungeonTogether.Lan
     // Never extrapolate: a stalled connection must not invent movement or bullets.
     public sealed class SnapshotBuffer<T> where T : class
     {
+        public const double DefaultDelay = 0.06;
         private sealed class Frame { public T Value; public uint Sequence; public double Time; }
         private readonly List<Frame> frames = new List<Frame>();
         private readonly double delay;

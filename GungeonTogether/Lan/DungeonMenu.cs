@@ -84,10 +84,28 @@ namespace GungeonTogether.Lan
             InitMenuStyles();
             if (Session != null && Session.Mirroring && Session.Snapshot != null && !visible) {
                 WorldSnapshot state = Session.Snapshot;
-                Rect hud = new Rect(14, 14, 440, 52);
-                Frame(hud, Ink, Border);
-                GUI.Label(new Rect(26, 22, 420, 21), CharacterCatalog.Name(Session.GuestCharacter) + "   HP " + state.Health.ToString("0.0") + "   Armor " + state.Armor.ToString("0") + "   Ammo " + state.Ammo, menuText);
-                GUI.Label(new Rect(26, 44, 420, 18), state.Paused ? "Paused by host" : "Ctrl+P - co-op menu", menuSmall);
+                Matrix4x4 hudMatrix = GUI.matrix;
+                bool textWrap = menuText.wordWrap, smallWrap = menuSmall.wordWrap, textRich = menuText.richText, smallRich = menuSmall.richText;
+                float hudScale = Mathf.Min(1f, Mathf.Min(Screen.width / 596f, Screen.height / 148f));
+                GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(hudScale, hudScale, 1));
+                menuText.wordWrap = menuSmall.wordWrap = menuText.richText = menuSmall.richText = false;
+                try {
+                    Frame(new Rect(14, 14, 568, 120), Ink, Border);
+                    string ammo = state.InfiniteAmmo ? "∞" : state.Ammo.ToString();
+                    string keys = state.InfiniteKeys ? "∞" : state.Keys.ToString();
+                    GUI.Label(new Rect(26, 22, 544, 21), CharacterCatalog.Name(Session.GuestCharacter) + "   HP " + state.Health.ToString("0.0") + "   Armor " + state.Armor.ToString("0") + "   Ammo " + ammo, menuText);
+                    GUI.Label(new Rect(26, 47, 544, 18), "Cash " + state.Currency + "   Keys " + keys + "   Blanks " + state.Blanks, menuSmall);
+                    GUI.Label(new Rect(26, 67, 544, 18), "Gun: " + (state.GunName.Length == 0 ? "None" : state.GunName), menuSmall);
+                    string itemStatus = state.ActiveItemActive ? "Active" : state.ActiveItemReady ? "Ready" : state.ActiveItemCooldown > 0 ? "Charging " + Mathf.RoundToInt((1 - state.ActiveItemCooldown) * 100) + "%" : "Unavailable";
+                    string itemName = state.ActiveItemName.Length > 48 ? state.ActiveItemName.Substring(0, 47) + "…" : state.ActiveItemName;
+                    GUI.Label(new Rect(26, 87, 544, 18), "Item: " + (itemName.Length == 0 ? "None" : itemName + " · " + itemStatus), menuSmall);
+                    string status = state.GameOver ? "Run ended" : state.IsGhost ? "Ghost · awaiting revival" : state.IsDead ? "Downed" : "Ctrl+P · co-op menu";
+                    if (state.Paused && !state.GameOver) status += "   ·   Paused by host";
+                    GUI.Label(new Rect(26, 109, 544, 18), status, menuSmall);
+                } finally {
+                    GUI.matrix = hudMatrix;
+                    menuText.wordWrap = textWrap; menuSmall.wordWrap = smallWrap; menuText.richText = textRich; menuSmall.richText = smallRich;
+                }
             }
             if (!visible) return;
             Matrix4x4 previous = GUI.matrix;
@@ -112,13 +130,13 @@ namespace GungeonTogether.Lan
             Fill(new Rect(28, 21, 8, 5), Gold);
             Fill(new Rect(24, 50, 16, 3), Border);
             GUI.Label(new Rect(55, 18, 480, 39), "GUNGEON TOGETHER", menuTitle);
-            GUI.Label(new Rect(55, 59, 490, 23), "NETWORK CO-OP   /   LAN 0.3.0 · ALPHA", menuSmall);
+            GUI.Label(new Rect(55, 59, 490, 23), "NETWORK CO-OP   /   LAN 0.3.2 · ALPHA", menuSmall);
             if (MenuButton(new Rect(550, 23, 36, 32), "×", true, false)) visible = false;
 
             if (!UsesSeparateProfile) {
                 GUI.Label(new Rect(28, 113, 558, 130), "Normal saves are active.\n\nFor co-op, use Start Modded in a separate mod profile or launch with the LAN launcher.", menuText);
                 GUI.Label(new Rect(28, 480, 558, 44), "Close menu: Esc or Ctrl+P", menuSmall);
-                GUI.DragWindow(new Rect(0, 0, 540, 82)); return;
+                GUI.DragWindow(new Rect(0, 0, 540, 82)); DrawMenuCursor(); return;
             }
             if (transport.Active) hostTab = transport.IsHost;
             if (MenuButton(new Rect(28, 99, 272, 37), "HOST", !transport.Active, hostTab)) hostTab = true;
@@ -154,13 +172,33 @@ namespace GungeonTogether.Lan
                     catch (Exception ex) { error = ex.Message; Log(error); }
                 }
             }
-            string status = error.Length != 0 ? error : transport.Connected ? "Connected. Interpolation: 120 ms." : transport.Active ? "Check the address and room code on both PCs." : hostTab ? "Share your Radmin / LAN IPv4 and room code with your friend." : "Both players must be on the same LAN or Radmin network.";
-            if (showNetworkDetails) status = transport.Status + (Session == null ? "" : " · " + Session.Status) + (error.Length == 0 ? "" : "\n" + error);
+            string link = "Connected · RTT " + transport.RoundTripMilliseconds.ToString("0") + " ms · smoothing 60 ms";
+            if (Session != null && Session.Mirroring) link += " · response " + Session.InputLatencyMs.ToString("0") + " ms";
+            string status = error.Length != 0 ? error : transport.Connected ? link : transport.Active ? "Check the address and room code on both PCs." : hostTab ? "Share your Radmin / LAN IPv4 and room code with your friend." : "Both players must be on the same LAN or Radmin network.";
+            if (error.Length == 0 && Session != null && Session.InRun && Session.Phase != DungeonSession.RunPhase.Running) status = Session.Status;
+            if (showNetworkDetails) status = (transport.Connected ? link + " · queue " + transport.PendingBytes / 1024 + " KiB\n" : transport.Status + "\n") + (Session == null ? "" : Session.Status) + (error.Length == 0 ? "" : "\n" + error);
             GUI.Label(new Rect(28, 465, 558, 54), status, menuSmall);
             if (MenuButton(new Rect(28, 534, 248, 30), "DISCONNECT / FOYER", transport.Active || (Session != null && Session.InRun), false)) ReturnToFoyer();
             if (MenuButton(new Rect(290, 534, 142, 30), "DETAILS", true, false)) showNetworkDetails = !showNetworkDetails;
             if (MenuButton(new Rect(446, 534, 140, 30), "CLOSE · Esc", true, false)) visible = false;
             GUI.DragWindow(new Rect(0, 0, 540, 82));
+            DrawMenuCursor();
+        }
+
+        private void DrawMenuCursor()
+        {
+            // The game's world-space crosshair is below IMGUI. Paint this last
+            // inside the window so buttons and text fields cannot cover it.
+            if (Event.current.type != EventType.Repaint) return;
+            Vector2 p = Event.current.mousePosition;
+            if (!new Rect(0, 0, 614, 580).Contains(p)) return;
+            float x = Mathf.Round(p.x), y = Mathf.Round(p.y);
+            Color outline = new Color(0.025f, 0.02f, 0.015f);
+            Fill(new Rect(x - 7, y - 2, 15, 5), outline);
+            Fill(new Rect(x - 2, y - 7, 5, 15), outline);
+            Fill(new Rect(x - 6, y - 1, 13, 3), Paper);
+            Fill(new Rect(x - 1, y - 6, 3, 13), Paper);
+            Fill(new Rect(x - 1, y - 1, 3, 3), Gold);
         }
 
         private void ChangeGuest(int direction)
