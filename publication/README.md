@@ -1,22 +1,21 @@
 # Gungeon Together LAN
 
-[Русская инструкция](https://github.com/vladnow/GungeonTogether-LAN/blob/main/README.ru.md)
 
 Experimental **two-player co-op for Enter the Gungeon** over LAN or Radmin VPN. Connect using **Host / Join by IPv4**. The host runs native co-op; the client controls a selected second character and renders replicated objects using its own game resources. During normal gameplay, each screen follows its own player: the host follows player one, and the client follows player two. Native manual camera sequences can temporarily use shared cinematic framing.
 
-**0.3.4 is an early-floor testing alpha. The known fourth-floor Sell Creep layout mismatch remains unresolved and can stop a run. Full campaign completion is not established.** This update adds the guest's graphical HUD and combat sound-event relay. Some effects and interactions remain incomplete.
+**0.3.5 is an early-floor testing alpha. The known fourth-floor Sell Creep layout mismatch remains unresolved and can stop a run. Full campaign completion is not established.** This update improves guest movement response with a fast player stream and bounded visual prediction. The graphical guest HUD and combat sound-event relay remain available. Some effects and interactions remain incomplete.
 
 ## Install or update
 
-- Both Windows PCs need matching game files and **the same 0.3.4 build**. Built against Steam Enter the Gungeon **2.1.9**.
+- Both Windows PCs need matching game files and **the same 0.3.5 build**. Built against Steam Enter the Gungeon **2.1.9**.
 - Use **BepInExPack EtG 5.4.2101** / BepInEx 5 and a clean manager profile with one networking mod.
 - Install Radmin VPN separately when using a virtual LAN.
 
-When this version is published on Thunderstore, update the mod on both PCs and use **Start Modded**. For a prepared local package, install the loader in the profile, then import `GungeonTogether_LAN-0.3.4-Thunderstore.zip` through **Settings → Import local mod**. The local import may require installing the loader dependency separately.
+When this version is published on Thunderstore, update the mod on both PCs and use **Start Modded**. For a prepared local package, install the loader in the profile, then import `GungeonTogether_LAN-0.3.5-Thunderstore.zip` through **Settings → Import local mod**. The local import may require installing the loader dependency separately.
 
 Remove older LAN DLLs and other GungeonTogether variants from that profile first. Keep backups outside `BepInEx/plugins`. Use separate profiles for LAN and other networking mods. This release contains a Thunderstore package and source; no updated launcher is provided.
 
-**0.3.4 cannot connect to 0.3.3 or earlier peers. Update both PCs.** Creating a package does not publish it. Source is available from [GitHub](https://github.com/vladnow/GungeonTogether-LAN); **Code → Download ZIP** downloads source, not an installable mod.
+**0.3.5 cannot connect to 0.3.4 or earlier peers. Update both PCs.** Creating a package does not publish it. Source is available from [GitHub](https://github.com/vladnow/GungeonTogether-LAN); **Code → Download ZIP** downloads source, not an installable mod.
 
 ## Connect and play
 
@@ -53,9 +52,13 @@ The missing-asset and layout checks remain active. A real mismatch still stops t
 
 ## Latency
 
-The queue/compression improvements from 0.3.1 remain: stale unsent world states are replaced by newer ones, while reliable control messages retain their order. The display buffer is **60 ms**, with dungeon snapshots up to **20 Hz**. There is no client prediction.
+The host sends a compact, **75-byte player-motion payload up to 60 times per second**, separately from full world snapshots at up to **30 Hz**. Capture runs after native physics, and input acknowledgements refer to input consumed by the native player controller. Guest input also runs at up to 60 Hz with a scheduler that preserves its cadence through ordinary frame jitter. Actual rates depend on frame rate and load.
 
-The menu's RTT measures the mod's round trip. Its response figure measures guest input to a confirming host snapshot and excludes display interpolation. Neither is a pure Radmin ping or a guarantee. Low FPS, resource loading, congestion and retransmissions can still add delay. **0.3.4 adds guest HUD/audio presentation and retains the camera/enemy-asset fixes; it does not claim a further input-latency reduction.**
+Normal guest walking uses bounded visual prediction of unacknowledged inputs. The body, hands, gun and attached outlines move together, and the guest camera follows that presented position. Prediction is limited to **100 ms / 0.65 game units**, stops on stale motion, and checks local walls, pits, room bounds and blocking bodies. Host pause, input overrides, rolls, room changes and teleports reset or disable it. Damage, pickups and gameplay outcomes remain authoritative on the host. This is visual anticipation, not complete client physics or rollback; corrections can still be visible.
+
+The other world objects use adaptive interpolation: **40 ms initially, bounded to 35–90 ms** according to arrival jitter. The menu reports the current smoothing delay. To disable speculative walking, close the game and set `ClientMovementPrediction = false` under `[Network]` in the profile's `BepInEx/config/com.gungeontogether.lan.cfg`, then restart. The fast authoritative player stream remains active.
+
+The menu's RTT measures the mod's round trip; its response figure measures an input acknowledgement and excludes display presentation. Neither is a Radmin ping. Local native movement measurements are documented in `VALIDATION.md`; they do not establish latency between two physical PCs. TCP retransmissions, low FPS, loading and congestion can still add delay. UDP and world delta compression are not implemented. Raising the world update rate can increase total traffic.
 
 Historical constrained-network measurements belong to 0.3.1 and are retained in `publication/VALIDATION-0.3.1.md` and [the transport evidence](https://github.com/vladnow/GungeonTogether-LAN/blob/main/validation/latency-031/README.md).
 

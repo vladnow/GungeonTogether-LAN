@@ -1,0 +1,109 @@
+{
+  "version": "0.3.5",
+  "date": "2026-10-16",
+  "runtime_sha256": "96c874eecead6eb57a668b3e3f605938900cff86ad33c7af62feb38a32924dbf",
+  "measurement": "Synthetic native input sample to >=0.0625 game units of presented guest displacement, not hardware input-to-photon timing.",
+  "network": "Two local native game processes over loopback. No physical-PC/Radmin run.",
+  "baseline_034": {
+    "guest": "Pilot",
+    "measurement": {
+      "median_ms": 80.456,
+      "p95_ms": 91.576,
+      "trials": 12
+    },
+    "runtime_sha256": "d3594272f979a4c03d0b70a82a7c8f89f4b92976c2209281a8b7913ff85fce61"
+  },
+  "cases": [
+    {
+      "guest": "Pilot",
+      "suite": "response",
+      "runtime_sha256": "96c874eecead6eb57a668b3e3f605938900cff86ad33c7af62feb38a32924dbf",
+      "layout_barriers": [
+        "1:5d017a567c32b15d879acd9cc8b0970ab00de6d7345f6d17429e14b73cdca09f",
+        "2:10c68479967554bcdb00c76f03fff24f6037213354cc141b1091652fc15defca"
+      ],
+      "base_move_fire_native_damage_and_forced_floor2": true,
+      "desktop_safety_pass_processes": 2,
+      "intentional_disconnect_after_pass": true,
+      "measurement": {
+        "median_ms": 11.738,
+        "p95_ms": 29.06,
+        "trials": 12
+      },
+      "predicted_visible_frames": 301.0,
+      "guest_owned_sprites": 7.0,
+      "wall_and_pit_queries_verified": true,
+      "host_pause_override_roll_and_teleport_checked": true,
+      "world_capture_mean_ms": 1.06,
+      "world_capture_max_ms": 18.602,
+      "presentation_png_sha256": "db4f57d8c0eaa9afda299a871a906cbde2ba561a48d70d553beb959fcdbc2108"
+    },
+    {
+      "guest": "Hunter",
+      "suite": "response",
+      "runtime_sha256": "96c874eecead6eb57a668b3e3f605938900cff86ad33c7af62feb38a32924dbf",
+      "layout_barriers": [
+        "1:5d017a567c32b15d879acd9cc8b0970ab00de6d7345f6d17429e14b73cdca09f",
+        "2:10c68479967554bcdb00c76f03fff24f6037213354cc141b1091652fc15defca"
+      ],
+      "base_move_fire_native_damage_and_forced_floor2": true,
+      "desktop_safety_pass_processes": 2,
+      "intentional_disconnect_after_pass": true,
+      "measurement": {
+        "median_ms": 12.424,
+        "p95_ms": 28.13,
+        "trials": 12
+      },
+      "predicted_visible_frames": 317.0,
+      "guest_owned_sprites": 7.0,
+      "wall_and_pit_queries_verified": true,
+      "host_pause_override_roll_and_teleport_checked": true,
+      "world_capture_mean_ms": 1.079,
+      "world_capture_max_ms": 18.446,
+      "presentation_png_sha256": "e4c706cf8e994570aac299c79efb0e6ce5f587d2c420098610623fd4b042de2a"
+    },
+    {
+      "guest": "Pilot",
+      "suite": "presentation",
+      "runtime_sha256": "96c874eecead6eb57a668b3e3f605938900cff86ad33c7af62feb38a32924dbf",
+      "layout_barriers": [
+        "1:5d017a567c32b15d879acd9cc8b0970ab00de6d7345f6d17429e14b73cdca09f",
+        "2:10c68479967554bcdb00c76f03fff24f6037213354cc141b1091652fc15defca"
+      ],
+      "base_move_fire_native_damage_and_forced_floor2": true,
+      "desktop_safety_pass_processes": 2,
+      "intentional_disconnect_after_pass": true,
+      "graphical_HUD_native_assets": 9,
+      "health_armor_consumables_gun15_item108_repaint_verified": true,
+      "native_PostEvent_calls": 77.0,
+      "distinct_event_ids": 17.0,
+      "native_SetSwitch_calls": 69.0,
+      "all_native_PostEvent_output_suppressed": true,
+      "first_floor_real_weapon_event_verified": true,
+      "HUD_png_sha256": "6dac3807cb320fe26682fc48d2d192ffb7a0ede42f547dcc780236d8f0aa795a"
+    },
+    {
+      "guest": "Hunter",
+      "suite": "presentation",
+      "runtime_sha256": "96c874eecead6eb57a668b3e3f605938900cff86ad33c7af62feb38a32924dbf",
+      "layout_barriers": [
+        "1:5d017a567c32b15d879acd9cc8b0970ab00de6d7345f6d17429e14b73cdca09f",
+        "2:10c68479967554bcdb00c76f03fff24f6037213354cc141b1091652fc15defca"
+      ],
+      "base_move_fire_native_damage_and_forced_floor2": true,
+      "desktop_safety_pass_processes": 2,
+      "intentional_disconnect_after_pass": true,
+      "graphical_HUD_native_assets": 9,
+      "health_armor_consumables_gun15_item108_repaint_verified": true,
+      "native_PostEvent_calls": 133.0,
+      "distinct_event_ids": 18.0,
+      "native_SetSwitch_calls": 88.0,
+      "all_native_PostEvent_output_suppressed": true,
+      "first_floor_real_weapon_event_verified": true,
+      "HUD_png_sha256": "d32a525d5fc6a86a4a58573c7e855a3e73979b60cb541db2902983d4348bdfa8"
+    }
+  ],
+  "audio_output_disabled": true,
+  "listening_test": false,
+  "raw_private_logs_distributed": false
+}

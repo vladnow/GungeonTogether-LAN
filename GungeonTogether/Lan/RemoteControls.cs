@@ -18,6 +18,8 @@ namespace GungeonTogether.Lan
             public override void Update(ulong tick, float deltaTime)
             {
                 RemoteInput input = owner.state;
+                owner.ConsumedInputSequence = input.Sequence;
+                owner.consumed = input;
                 bool stale = Time.realtimeSinceStartup - owner.lastReceived > 0.25f || !owner.Enabled;
                 for (int i = 0; i < 41; i++) {
                     float value = 0;
@@ -49,11 +51,17 @@ namespace GungeonTogether.Lan
         private GungeonActions previousActions;
         private BraveInput target;
         private RemoteInput state = new RemoteInput();
+        private RemoteInput consumed = new RemoteInput();
         private float lastReceived;
         public bool Enabled;
         public InputDevice Device { get { return device; } }
         public GungeonActions Actions { get { return actions; } }
         public uint LastInputSequence { get { return state.Sequence; } }
+        public uint ConsumedInputSequence { get; private set; }
+        public uint SimulatedInputSequence { get; private set; }
+        public float SimulatedMoveX { get; private set; }
+        public float SimulatedMoveY { get; private set; }
+        public void MarkSimulatedInput() { SimulatedInputSequence = consumed.Sequence; SimulatedMoveX = consumed.MoveX; SimulatedMoveY = consumed.MoveY; }
         public float LastMoveX { get { return state.MoveX; } }
         public float ViewAspect { get { return state.ViewAspect; } }
 

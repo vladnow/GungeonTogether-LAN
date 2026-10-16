@@ -27,7 +27,15 @@ namespace GungeonTogether.Lan
         private float nextActorRefresh;
         private bool seeded, suppressing, disposed;
         private GameUIRoot hud;
-        private readonly SnapshotBuffer<WorldSnapshot> frames = new SnapshotBuffer<WorldSnapshot>(SnapshotBuffer<WorldSnapshot>.DefaultDelay);
+        private readonly SnapshotBuffer<WorldSnapshot> frames = new SnapshotBuffer<WorldSnapshot>(.04, true);
+        public readonly MovementPrediction Prediction = new MovementPrediction();
+        public bool PredictionEnabled = true;
+        public int GuardClips { get; private set; }
+        public int PredictedVisibleFrames { get; private set; }
+        public Vector2 PresentedLead { get; private set; }
+        public double SmoothingMilliseconds { get { return frames.DelaySeconds * 1000; } }
+        private bool guardUnavailable;
+        private readonly List<SpriteState> renderStates = new List<SpriteState>();
         private readonly Dictionary<int, SpriteState> nextSprites = new Dictionary<int, SpriteState>();
         private WorldSnapshot indexedFrame;
         private readonly HashSet<int> present = new HashSet<int>();
@@ -157,6 +165,7 @@ namespace GungeonTogether.Lan
                     send(info.Encode());
                 }
                 Transform t = sprite.transform; Vector3 pos = t.position; Vector3 scale = t.lossyScale;
+                bool guestPart = player != null && (t.IsChildOf(player.transform) || (player.CurrentGun != null && t.IsChildOf(player.CurrentGun.transform)));
                 Color32 color = sprite.color;
                 if (materialMode != 0 && renderer.sharedMaterial != null && renderer.sharedMaterial.HasProperty("_OverrideColor")) {
                     Color outline = renderer.sharedMaterial.GetColor("_OverrideColor"); outline.a *= sprite.color.a; color = outline;
@@ -166,6 +175,7 @@ namespace GungeonTogether.Lan
                     X = pos.x, Y = pos.y, Z = pos.z, Rotation = t.eulerAngles.z, ScaleX = SpriteRenderPolicy.ScaleAxis(scale.x, sprite.scale.x), ScaleY = SpriteRenderPolicy.ScaleAxis(scale.y, sprite.scale.y), ScaleZ = scale.z * sprite.scale.z,
                     Height = sprite.HeightOffGround, Color = (uint)(color.r | color.g << 8 | color.b << 16 | color.a << 24), Flags = (byte)((sprite.FlipX ? 1 : 0) | (sprite.FlipY ? 2 : 0) | (sprite.ShouldDoTilt && sprite.IsPerpendicular ? 4 : 0) | (sprite.ShouldDoTilt ? 8 : 0)), Layer = (byte)sprite.gameObject.layer
                 };
+                if (guestPart) state.Flags |= 16;
                 tk2dTiledSprite tiled = sprite as tk2dTiledSprite;
                 tk2dSlicedSprite sliced = sprite as tk2dSlicedSprite;
                 tk2dClippedSprite clipped = sprite as tk2dClippedSprite;
@@ -243,6 +253,8 @@ namespace GungeonTogether.Lan
         {
             if (frames.Push(snapshot, snapshot.Sequence, snapshot.SentAt, Time.realtimeSinceStartup)) LastSnapshot = snapshot;
         }
+        public void RecordInput(RemoteInput input, double now) { Prediction.Record(input, now); }
+        public bool EnqueueMotion(PlayerMotion motion) { return Prediction.Observe(motion, Time.realtimeSinceStartup); }
 
         public void Render(double now)
         {
@@ -289,8 +301,26 @@ namespace GungeonTogether.Lan
 
         private void ApplyFrame(WorldSnapshot snapshot, WorldSnapshot next, float blend)
         {
+            Vector2 playerStart = new Vector2(snapshot.PlayerX, snapshot.PlayerY);
+            Vector2 playerEnd = new Vector2(next.PlayerX, next.PlayerY);
+            RemotePlayerPosition = (playerEnd - playerStart).sqrMagnitude < 64 ? Vector2.Lerp(playerStart, playerEnd, blend) : playerStart;
+            PlayerMotion motion = Prediction.Fresh(Time.realtimeSinceStartup) ? Prediction.Motion : null;
+            Vector2 lead = Vector2.zero, shift = Vector2.zero;
+            if (motion != null) {
+                float x, y; Prediction.Offset(Time.realtimeSinceStartup, PredictionEnabled && !guardUnavailable, out x, out y);
+                Vector2 requested = new Vector2(x, y);
+                try { lead = NativeMovement.ClipLead(motion, requested); if ((lead - requested).sqrMagnitude > .000001f) GuardClips++; }
+                catch (Exception ex) { guardUnavailable = true; Debug.LogWarning("GT_PREDICTION_FALLBACK: " + ex.Message); }
+                PresentedLead = lead;
+                if (lead.sqrMagnitude > .000001f) PredictedVisibleFrames++;
+                RemotePlayerPosition = new Vector2(motion.X, motion.Y) + lead;
+                shift = RemotePlayerPosition - new Vector2(LastSnapshot.PlayerX, LastSnapshot.PlayerY);
+            }
+            renderStates.Clear();
+            foreach (SpriteState state in snapshot.Sprites) if (motion == null || (state.Flags & 16) == 0) renderStates.Add(state);
+            if (motion != null) foreach (SpriteState state in LastSnapshot.Sprites) if ((state.Flags & 16) != 0) renderStates.Add(state);
             present.Clear();
-            foreach (SpriteState state in snapshot.Sprites) {
+            foreach (SpriteState state in renderStates) {
                 present.Add(state.Id);
                 tk2dSpriteCollectionData collection = Resolve(state.CollectionId);
                 if (state.SpriteId >= collection.spriteDefinitions.Length) throw new IOException("Sprite index differs between game builds.");
@@ -325,12 +355,14 @@ namespace GungeonTogether.Lan
                 Vector3 position = new Vector3(state.X, state.Y, state.Z);
                 float rotation = state.Rotation;
                 SpriteState following;
-                if (nextSprites.TryGetValue(state.Id, out following) && following.CollectionId == state.CollectionId && following.Kind == state.Kind) {
+                bool own = motion != null && (state.Flags & 16) != 0;
+                if (!own && nextSprites.TryGetValue(state.Id, out following) && following.CollectionId == state.CollectionId && following.Kind == state.Kind) {
                     Vector3 target = new Vector3(following.X, following.Y, following.Z);
                     // Room teleports must remain teleports, not a trip through walls.
                     if ((target - position).sqrMagnitude < 64f) position = Vector3.Lerp(position, target, blend);
                     rotation = Mathf.LerpAngle(rotation, following.Rotation, blend);
                 }
+                if (own) position += new Vector3(shift.x, shift.y, 0);
                 sprite.transform.position = position;
                 sprite.transform.rotation = Quaternion.Euler(0, 0, rotation);
                 Vector3 visualScale = new Vector3(state.ScaleX, state.ScaleY, state.ScaleZ);
@@ -349,9 +381,6 @@ namespace GungeonTogether.Lan
                 proxies.Remove(id); Material material;
                 if (proxyMaterials.TryGetValue(id, out material)) { if (material != null) UnityEngine.Object.Destroy(material); proxyMaterials.Remove(id); }
             }
-            Vector2 playerStart = new Vector2(snapshot.PlayerX, snapshot.PlayerY);
-            Vector2 playerEnd = new Vector2(next.PlayerX, next.PlayerY);
-            RemotePlayerPosition = (playerEnd - playerStart).sqrMagnitude < 64 ? Vector2.Lerp(playerStart, playerEnd, blend) : playerStart;
             PlayerController local = GameManager.Instance.PrimaryPlayer;
             if (local != null) {
                 local.transform.position = new Vector3(RemotePlayerPosition.x, RemotePlayerPosition.y, local.transform.position.z);
@@ -363,8 +392,8 @@ namespace GungeonTogether.Lan
                 Disable(controller);
                 Vector3 start = new Vector3(snapshot.CameraX, snapshot.CameraY, snapshot.CameraZ);
                 Vector3 end = new Vector3(next.CameraX, next.CameraY, next.CameraZ);
-                controller.Camera.transform.position = (end - start).sqrMagnitude < 144 ? Vector3.Lerp(start, end, blend) : start;
-                controller.Camera.orthographicSize = Mathf.Lerp(snapshot.CameraSize, next.CameraSize, blend);
+                controller.Camera.transform.position = motion != null ? new Vector3(motion.CameraX, motion.CameraY, motion.CameraZ) + (motion.CameraFollowsPlayer ? new Vector3(lead.x, lead.y, 0) : Vector3.zero) : (end - start).sqrMagnitude < 144 ? Vector3.Lerp(start, end, blend) : start;
+                controller.Camera.orthographicSize = motion != null ? motion.CameraSize : Mathf.Lerp(snapshot.CameraSize, next.CameraSize, blend);
             }
         }
 
@@ -431,6 +460,7 @@ namespace GungeonTogether.Lan
             foreach (Material material in proxyMaterials.Values) if (material != null) UnityEngine.Object.Destroy(material);
             proxyMaterials.Clear(); proxies.Clear(); definitions.Clear(); descriptors.Clear(); collections.Clear(); hostCollections.Clear(); collectionSignatures.Clear();
             frames.Clear(); nextSprites.Clear(); indexedFrame = null;
+            Prediction.Clear(); renderStates.Clear();
             hidden.Restore(); disabled.Restore();
             foreach (KeyValuePair<HealthHaver, bool> pair in protectedHealth) if (pair.Key != null) pair.Key.PreventAllDamage = pair.Value;
             protectedHealth.Clear();

@@ -110,7 +110,7 @@ namespace GungeonTogether.Lan
             Fill(new Rect(28, 21, 8, 5), Gold);
             Fill(new Rect(24, 50, 16, 3), Border);
             GUI.Label(new Rect(55, 18, 480, 39), "GUNGEON TOGETHER", menuTitle);
-            GUI.Label(new Rect(55, 59, 490, 23), "NETWORK CO-OP   /   LAN 0.3.4 · ALPHA", menuSmall);
+            GUI.Label(new Rect(55, 59, 490, 23), "NETWORK CO-OP   /   LAN 0.3.5 · ALPHA", menuSmall);
             if (MenuButton(new Rect(550, 23, 36, 32), "×", true, false)) visible = false;
 
             if (!UsesSeparateProfile) {
@@ -152,7 +152,7 @@ namespace GungeonTogether.Lan
                     catch (Exception ex) { error = ex.Message; Log(error); }
                 }
             }
-            string link = "Connected · RTT " + transport.RoundTripMilliseconds.ToString("0") + " ms · smoothing 60 ms";
+            string link = "Connected · RTT " + transport.RoundTripMilliseconds.ToString("0") + " ms · smoothing " + (Session == null ? 40 : Session.SmoothingMilliseconds).ToString("0") + " ms";
             if (Session != null && Session.Mirroring) link += " · response " + Session.InputLatencyMs.ToString("0") + " ms";
             string status = error.Length != 0 ? error : transport.Connected ? link : transport.Active ? "Check the address and room code on both PCs." : hostTab ? "Share your Radmin / LAN IPv4 and room code with your friend." : "Both players must be on the same LAN or Radmin network.";
             if (error.Length == 0 && Session != null && Session.InRun && Session.Phase != DungeonSession.RunPhase.Running) status = Session.Status;

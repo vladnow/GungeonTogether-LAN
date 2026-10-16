@@ -4,7 +4,7 @@ using System.IO;
 
 namespace GungeonTogether.Lan
 {
-    public enum DungeonMessage : byte { Input = 2, Level = 3, Ready = 4, Snapshot = 5, Collection = 6, Stop = 7, Character = 8, Audio = 9 }
+    public enum DungeonMessage : byte { Input = 2, Level = 3, Ready = 4, Snapshot = 5, Collection = 6, Stop = 7, Character = 8, Audio = 9, Motion = 10 }
 
     public sealed class RemoteInput
     {
@@ -88,7 +88,7 @@ namespace GungeonTogether.Lan
         {
             SpriteState value = new SpriteState { Id = r.ReadInt32(), CollectionId = r.ReadInt32(), SpriteId = r.ReadInt32(), SortingOrder = r.ReadInt32(), X = r.ReadSingle(), Y = r.ReadSingle(), Z = r.ReadSingle(), Rotation = r.ReadSingle(), ScaleX = r.ReadSingle(), ScaleY = r.ReadSingle(), ScaleZ = r.ReadSingle(), Height = r.ReadSingle(), Color = r.ReadUInt32(), Flags = r.ReadByte(), Layer = r.ReadByte() };
             value.Kind = r.ReadByte(); value.Anchor = r.ReadByte(); value.Width = r.ReadSingle(); value.HeightPixels = r.ReadSingle(); value.ClipX = r.ReadSingle(); value.ClipY = r.ReadSingle(); value.ClipRight = r.ReadSingle(); value.ClipTop = r.ReadSingle();
-            if (value.Id == 0 || value.CollectionId < 1 || value.CollectionId > 4096 || value.SpriteId < 0 || value.SpriteId > 100000 || (value.Flags & ~15) != 0 || value.Layer > 31) throw new IOException("Invalid sprite snapshot.");
+            if (value.Id == 0 || value.CollectionId < 1 || value.CollectionId > 4096 || value.SpriteId < 0 || value.SpriteId > 100000 || (value.Flags & ~31) != 0 || value.Layer > 31) throw new IOException("Invalid sprite snapshot.");
             Wire.Range(value.X, -100000, 100000); Wire.Range(value.Y, -100000, 100000); Wire.Range(value.Z, -100000, 100000);
             Wire.Range(value.Rotation, -3600, 3600); Wire.Range(value.ScaleX, -1000, 1000); Wire.Range(value.ScaleY, -1000, 1000); Wire.Range(value.ScaleZ, -1000, 1000); Wire.Range(value.Height, -1000, 1000);
             if (value.Kind > 3 || value.Anchor > 8) throw new IOException("Unknown sprite geometry.");
