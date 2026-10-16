@@ -1,6 +1,6 @@
 using System.Reflection;
 [assembly: AssemblyTitle("GungeonTogether LAN Dungeon Sync Alpha")]
 [assembly: AssemblyDescription("Experimental host-authoritative two-PC dungeon synchronization")]
-[assembly: AssemblyVersion("0.3.4.0")]
-[assembly: AssemblyFileVersion("0.3.4.0")]
+[assembly: AssemblyVersion("0.3.5.0")]
+[assembly: AssemblyFileVersion("0.3.5.0")]
 

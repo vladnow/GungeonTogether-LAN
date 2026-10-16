@@ -10,10 +10,13 @@ namespace GungeonTogether.Lan
         public const double DefaultDelay = 0.06;
         private sealed class Frame { public T Value; public uint Sequence; public double Time; }
         private readonly List<Frame> frames = new List<Frame>();
-        private readonly double delay;
+        private double delay;
+        private readonly bool adaptive;
+        private double lastArrival, jitter;
         private double offset, playback = double.NegativeInfinity;
         public int Count { get { return frames.Count; } }
-        public SnapshotBuffer(double delay) { this.delay = Math.Max(0, delay); }
+        public double DelaySeconds { get { return delay; } }
+        public SnapshotBuffer(double delay, bool adaptive = false) { this.delay = Math.Max(0, delay); this.adaptive = adaptive; }
 
         public bool Push(T value, uint sequence, double sentAt, double receivedAt)
         {
@@ -21,9 +24,16 @@ namespace GungeonTogether.Lan
             if (frames.Count != 0) {
                 Frame last = frames[frames.Count - 1];
                 if (unchecked((int)(sequence - last.Sequence)) <= 0 || sentAt <= last.Time) return false;
+                if (adaptive) {
+                    double interval = sentAt - last.Time;
+                    jitter += (Math.Abs((receivedAt - lastArrival) - interval) - jitter) * .1;
+                    double target = Math.Max(.035, Math.Min(.09, interval * 1.1 + jitter * 2));
+                    delay += (target - delay) * (target > delay ? .35 : .05);
+                }
                 offset = Math.Min(offset, receivedAt - sentAt);
             } else offset = receivedAt - sentAt;
             frames.Add(new Frame { Value = value, Sequence = sequence, Time = sentAt });
+            lastArrival = receivedAt;
             if (frames.Count > 32) frames.RemoveAt(0);
             return true;
         }
@@ -45,7 +55,7 @@ namespace GungeonTogether.Lan
             return true;
         }
 
-        public void Clear() { frames.Clear(); playback = double.NegativeInfinity; }
+        public void Clear() { frames.Clear(); playback = double.NegativeInfinity; lastArrival = jitter = 0; }
         private static bool Finite(double value) { return !double.IsNaN(value) && !double.IsInfinity(value); }
     }
 }

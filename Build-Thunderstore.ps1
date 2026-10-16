@@ -27,22 +27,24 @@ $checksumName = "GungeonTogether_LAN-$version$suffix-SHA256SUMS.txt"
 $sidecars = @{}
 $sidecars[$releaseNotesName] = Join-Path $publication $releaseNotesName
 $sidecars["VALIDATION-$version.md"] = Join-Path $publication 'VALIDATION.md'
-$sidecars["START-HERE.ru-$version.md"] = Join-Path $publication 'START-HERE.ru.md'
-$sidecars["UPDATE-GITHUB.ru-$version.md"] = Join-Path $publication 'UPDATE-GITHUB.ru.md'
+$sidecars["START-HERE-$version.md"] = Join-Path $publication 'START-HERE.md'
+$sidecars["UPDATE-GITHUB-$version.md"] = Join-Path $publication 'UPDATE-GITHUB.md'
+$sidecars["PUBLISH-THUNDERSTORE-$version.md"] = Join-Path $publication 'PUBLISH-THUNDERSTORE.md'
 foreach ($name in (@($packageName,$sourceName,$checksumName) + @($sidecars.Keys))) { if (Test-Path -LiteralPath (Join-Path $out $name)) { throw ('Refusing to overwrite release: ' + $name) } }
-$sourceFiles = @('README.md','README.ru.md','Build-LAN.ps1','Build-Launcher.ps1','Build-Thunderstore.ps1','Test-LAN.ps1','Test-Dungeon.ps1','Test-Profile.ps1','Test-Rendering.ps1','Test-GameBindings.ps1','Test-Display.ps1','Test-Acknowledgements.ps1','Test-Latency.ps1','Test-SpriteVisibility.ps1','GungeonTogether\GungeonTogether.csproj','GungeonTogether\Networking\Players\RemotePlayerAvatar.cs','launcher\Launcher.cs','tests\LanTests.cs','tests\DungeonTests.cs','tests\ProfileTests.cs','tests\RenderingTests.cs','tests\DisplayProfileTests.cs','tests\AcknowledgementTests.cs','tests\TransportLatencyTests.cs','tests\SpriteVisibilityTests.cs','validation\summary.json','validation\latency-031\README.md','validation\latency-031\fifo-high-entropy.txt','validation\latency-031\latest-high-entropy.txt')
+$sourceFiles = @('README.md','Build-LAN.ps1','Build-Launcher.ps1','Build-Thunderstore.ps1','Test-LAN.ps1','Test-Dungeon.ps1','Test-Profile.ps1','Test-Rendering.ps1','Test-GameBindings.ps1','Test-Display.ps1','Test-Acknowledgements.ps1','Test-Latency.ps1','Test-SpriteVisibility.ps1','GungeonTogether\GungeonTogether.csproj','GungeonTogether\Networking\Players\RemotePlayerAvatar.cs','launcher\Launcher.cs','tests\LanTests.cs','tests\DungeonTests.cs','tests\ProfileTests.cs','tests\RenderingTests.cs','tests\DisplayProfileTests.cs','tests\AcknowledgementTests.cs','tests\TransportLatencyTests.cs','tests\SpriteVisibilityTests.cs','validation\summary.json','validation\latency-031\README.md','validation\latency-031\fifo-high-entropy.txt','validation\latency-031\latest-high-entropy.txt')
 $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'GungeonTogether\Lan') -Filter '*.cs' -File | Where-Object Name -ne 'LanPlugin.cs' | ForEach-Object { 'GungeonTogether\Lan\' + $_.Name })
 $sourceFiles += 'validation\latency-031\native-summary.json'
 $sourceFiles = @($sourceFiles | Where-Object { $_ -notin @('Build-Launcher.ps1','launcher\Launcher.cs') })
 $sourceFiles += @('validation\host-freeze-032\README.md','validation\host-freeze-032\native-summary.json')
 $sourceFiles += @('validation\camera-033\README.md','validation\camera-033\native-summary.json')
 $sourceFiles += @('.gitignore','GungeonTogether.sln')
-$sourceFiles += 'AGENTS.md'
+# AGENTS.md belongs to the local development workspace, not public packages.
 $sourceFiles += @('Test-Presentation.ps1','tests\PresentationTests.cs','validation\presentation-034\README.md','validation\presentation-034\native-summary.json')
-$publicationSourceFiles = @('README.md','README.ru.md','LICENSE','NOTICE.md','CHANGELOG.md','manifest.json','VALIDATION.md','INSTALL-PROFILES.ru.md','Build-Icon.ps1','UPDATE-GITHUB.ru.md','PUBLISH-THUNDERSTORE.ru.md')
+$sourceFiles += @('Test-Responsiveness.ps1','tests\ResponsivenessTests.cs','validation\responsiveness-035\README.md','validation\responsiveness-035\native-summary.json')
+$publicationSourceFiles = @('README.md','LICENSE','NOTICE.md','CHANGELOG.md','manifest.json','VALIDATION.md','INSTALL-PROFILES.md','Build-Icon.ps1','UPDATE-GITHUB.md','PUBLISH-THUNDERSTORE.md')
 $publicationSourceFiles += @(Get-ChildItem -LiteralPath $publication -Filter 'RELEASE-NOTES-*.md' -File | Select-Object -ExpandProperty Name)
 $publicationSourceFiles += @(Get-ChildItem -LiteralPath $publication -Filter 'VALIDATION-*.md' -File | Select-Object -ExpandProperty Name)
-$publicationSourceFiles += 'START-HERE.ru.md'
+$publicationSourceFiles += 'START-HERE.md'
 foreach ($relative in $sourceFiles) { if (!(Test-Path -LiteralPath (Join-Path $PSScriptRoot $relative) -PathType Leaf)) { throw ('Missing source package input: ' + $relative) } }
 foreach ($name in $publicationSourceFiles) { if (!(Test-Path -LiteralPath (Join-Path $publication $name) -PathType Leaf)) { throw ('Missing publication input: ' + $name) } }
 function Add-Entry($zip,[string]$path,[string]$name) {
@@ -58,7 +60,7 @@ try {
 } finally { $sourceZip.Dispose() }
 $zip = [IO.Compression.ZipFile]::Open((Join-Path $out $packageName),[IO.Compression.ZipArchiveMode]::Create)
 try {
- foreach ($name in @('manifest.json','README.md','README.ru.md','icon.png','CHANGELOG.md','LICENSE','NOTICE.md','INSTALL-PROFILES.ru.md','VALIDATION.md','VALIDATION-0.3.0.md')) { Add-Entry $zip (Join-Path $publication $name) $name }
+ foreach ($name in @('manifest.json','README.md','icon.png','CHANGELOG.md','LICENSE','NOTICE.md','INSTALL-PROFILES.md','VALIDATION.md','VALIDATION-0.3.0.md')) { Add-Entry $zip (Join-Path $publication $name) $name }
  Add-Entry $zip (Join-Path $publication $releaseNotesName) $releaseNotesName
  Add-Entry $zip $runtime ('BepInEx/plugins/GungeonTogetherLAN/' + $dllName)
 } finally { $zip.Dispose() }

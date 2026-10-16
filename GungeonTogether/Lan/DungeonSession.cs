@@ -17,7 +17,12 @@ namespace GungeonTogether.Lan
         private string generationContext, clientOriginalContext;
         private int epoch, seed;
         private uint inputSequence, snapshotSequence, lastSnapshot;
-        private float deadline, nextInput, nextSnapshot;
+        private float deadline;
+        private double nextInput, nextSnapshot, nextMotion;
+        private uint motionSequence;
+        private ulong previousButtons;
+        public bool EnableMovementPrediction = true;
+        public double SmoothingMilliseconds { get { return sprites.SmoothingMilliseconds; } }
         private bool loadingCommand;
         private readonly InputAcknowledgements inputAcks = new InputAcknowledgements();
         private float nextNetworkLog;
@@ -112,20 +117,15 @@ namespace GungeonTogether.Lan
                 if (IsHost) {
                     NativeWorld.EnsureGuest(GuestCharacter); controls.Bind(); controls.Enabled = true;
                     Audio.Flush(epoch, transport);
-                    if (Time.realtimeSinceStartup >= nextSnapshot) {
-                        nextSnapshot = Time.realtimeSinceStartup + 0.05f;
-                        WorldSnapshot snapshot = sprites.Capture(epoch, ++snapshotSequence, Send, controls.ViewAspect);
-                        snapshot.InputSequence = controls.LastInputSequence;
-                        transport.SendLatest(snapshot.Encode());
-                    }
                 } else {
                     Audio.Maintain();
                     sprites.SuppressLocalSimulation();
-                    if (Time.realtimeSinceStartup >= nextInput) {
-                        nextInput = Time.realtimeSinceStartup + 1f / 60f;
+                    if (NetworkTiming.Due(ref nextInput, Time.realtimeSinceStartup, 1.0 / 60)) {
                         RemoteInput input = CaptureInput();
                         inputAcks.Sent(input.Sequence, Time.realtimeSinceStartup);
-                        Send(input.Encode());
+                        sprites.RecordInput(input, Time.realtimeSinceStartup);
+                        if (input.Buttons != previousButtons) Send(input.Encode()); else transport.SendLatest(input.Encode());
+                        previousButtons = input.Buttons;
                     }
                 }
                 if (Time.realtimeSinceStartup >= nextNetworkLog) {
@@ -138,8 +138,28 @@ namespace GungeonTogether.Lan
         public void LateUpdate()
         {
             if (!Mirroring || GameManager.Instance.IsLoadingLevel) return;
-            try { sprites.Render(Time.realtimeSinceStartup); }
+            try { sprites.PredictionEnabled = EnableMovementPrediction && !MuteClientInput; sprites.Render(Time.realtimeSinceStartup); }
             catch (Exception ex) { Fail(ex.Message); }
+        }
+
+        // The acknowledgements describe input actually consumed by native player
+        // movement, and snapshots follow native collision resolution this frame.
+        public void AfterPhysics()
+        {
+            if (!IsHost || Phase != RunPhase.Running || GameManager.Instance.IsLoadingLevel || controls == null) return;
+            try {
+                double now = Time.realtimeSinceStartup;
+                if (NetworkTiming.Due(ref nextMotion, now, 1.0 / 60)) {
+                    PlayerMotion motion = NativeMovement.Capture(epoch, ++motionSequence, controls);
+                    if (motion != null) transport.SendLatest(motion.Encode());
+                }
+                if (NetworkTiming.Due(ref nextSnapshot, now, 1.0 / 30)) {
+                    WorldSnapshot value = sprites.Capture(epoch, ++snapshotSequence, Send, controls.ViewAspect);
+                    value.InputSequence = controls.SimulatedInputSequence;
+                    transport.SendLatest(value.Encode());
+                }
+                transport.FlushPending();
+            } catch (Exception ex) { Fail(ex.Message); }
         }
 
         private RemoteInput CaptureInput()
@@ -222,6 +242,10 @@ namespace GungeonTogether.Lan
                 if (type == DungeonMessage.Level) BeginClientLevel(LevelCommand.Decode(bytes));
                 else if (type == DungeonMessage.Collection) { CollectionInfo info = CollectionInfo.Decode(bytes); if (info.Epoch == epoch) sprites.Define(info); }
                 else if (type == DungeonMessage.Audio) { SoundBatch batch = SoundBatch.Decode(bytes); if (Mirroring) Audio.Receive(batch, epoch, Snapshot); }
+                else if (type == DungeonMessage.Motion) {
+                    PlayerMotion motion = PlayerMotion.Decode(bytes);
+                    if (motion.Epoch == epoch && Mirroring && sprites.EnqueueMotion(motion)) inputAcks.Observe(motion.InputSequence, Time.realtimeSinceStartup);
+                }
                 else if (type == DungeonMessage.Snapshot) {
                     WorldSnapshot snapshot = WorldSnapshot.Decode(bytes);
                     if (snapshot.Epoch == epoch && Phase == RunPhase.Running && Wire.Newer(snapshot.Sequence, lastSnapshot)) { inputAcks.Observe(snapshot.InputSequence, Time.realtimeSinceStartup); Audio.ObserveClock(epoch, snapshot.SentAt); sprites.Enqueue(snapshot); lastSnapshot = snapshot.Sequence; }

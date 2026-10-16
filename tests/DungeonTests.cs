@@ -53,7 +53,7 @@ internal static class DungeonTests
                 level.Scene = scene;
                 Assert(LevelCommand.ValidScene(scene) && LevelCommand.Decode(level.Encode()).Scene == scene, "native main / secret / past scene allowed: " + scene);
             }
-            foreach (string scene in new string[] { "", "MainMenu", "ss_../outside", "fs_.._outside", "tt\\castle", "tt/castle", "tt:castle", "ss_foo bar", "fs_robot\n", "ss_foo%2fbar", "FS_robot", "tt_замок", "tt_" + new string('a', 126) }) {
+            foreach (string scene in new string[] { "", "MainMenu", "ss_../outside", "fs_.._outside", "tt\\castle", "tt/castle", "tt:castle", "ss_foo bar", "fs_robot\n", "ss_foo%2fbar", "FS_robot", "tt_\u2605", "tt_" + new string('a', 126) }) {
                 level.Scene = scene;
                 Reject(delegate { LevelCommand.Decode(level.Encode()); }, "unsafe or unsupported scene rejected: " + scene.Replace("\n", "\\n"));
             }
@@ -72,7 +72,7 @@ internal static class DungeonTests
             info.EnemyGuid = "";
             info.Id = 5000; Reject(delegate { CollectionInfo.Decode(info.Encode()); }, "collection ID limit enforced");
             WorldSnapshot state = Snapshot();
-            state.InputSequence = 765; state.Currency = 123; state.Keys = 4; state.Blanks = 2; state.GunName = "Морской пистолет"; state.ActiveItemName = "Supply Drop";
+            state.InputSequence = 765; state.Currency = 123; state.Keys = 4; state.Blanks = 2; state.GunName = "Marine \u2605"; state.ActiveItemName = "Supply Drop";
             state.ActiveItemCooldown = 0.625f; state.ActiveItemActive = true; state.IsGhost = true; state.IsDead = true; state.GameOver = true;
             state.InfiniteAmmo = true; state.InfiniteKeys = true;
             WorldSnapshot hud = WorldSnapshot.Decode(state.Encode());
@@ -110,7 +110,8 @@ internal static class DungeonTests
             Assert(geometry.Kind == 1 && geometry.Anchor == 4 && geometry.Layer == 16 && geometry.Width == 192 && geometry.HeightPixels == 16, "tiled sprite geometry and render layer round trip");
             state.Sprites[0].Flags = 15;
             Assert(WorldSnapshot.Decode(state.Encode()).Sprites[0].Flags == 15, "flip / perpendicular geometry / tilt flags round trip");
-            state.Sprites[0].Flags = 16; Reject(delegate { WorldSnapshot.Decode(state.Encode()); }, "unknown sprite geometry flags rejected"); state.Sprites[0].Flags = 0;
+            state.Sprites[0].Flags = 31; Assert(WorldSnapshot.Decode(state.Encode()).Sprites[0].Flags == 31, "guest ownership flag preserves native orientation bits");
+            state.Sprites[0].Flags = 32; Reject(delegate { WorldSnapshot.Decode(state.Encode()); }, "unknown sprite geometry flags rejected"); state.Sprites[0].Flags = 0;
             state.Sprites[0].Layer = 32; Reject(delegate { WorldSnapshot.Decode(state.Encode()); }, "invalid Unity render layer rejected"); state.Sprites[0].Layer = 16;
             state.Sprites[1].Id = 1; Reject(delegate { WorldSnapshot.Decode(state.Encode()); }, "duplicate entity ID rejected");
             state.Sprites[1].Id = 2; state.Sprites[0].X = float.PositiveInfinity; Reject(delegate { WorldSnapshot.Decode(state.Encode()); }, "invalid entity position rejected");

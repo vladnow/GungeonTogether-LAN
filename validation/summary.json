@@ -1,12 +1,12 @@
 {
-  "version": "0.3.4",
+  "version": "0.3.5",
   "date": "2026-10-16",
-  "runtime_sha256": "d3594272f979a4c03d0b70a82a7c8f89f4b92976c2209281a8b7913ff85fce61",
+  "runtime_sha256": "96c874eecead6eb57a668b3e3f605938900cff86ad33c7af62feb38a32924dbf",
   "ready_for_alpha_review": true,
   "development_preview": false,
-  "automated_checks": 265,
-  "lan_checks": 32,
-  "dungeon_protocol_checks": 84,
+  "automated_checks": 298,
+  "lan_checks": 33,
+  "dungeon_protocol_checks": 85,
   "profile_checks": 19,
   "rendering_character_checks": 38,
   "display_profile_checks": 9,
@@ -14,10 +14,11 @@
   "sprite_visibility_checks": 20,
   "transport_latency_checks": 24,
   "presentation_checks": 30,
-  "native_binding_checks": 36,
+  "responsiveness_checks": 31,
+  "native_binding_checks": 38,
   "launcher_built": false,
-  "dungeon_smoke_passes": 2,
-  "native_process_passes": 4,
+  "dungeon_smoke_passes": 4,
+  "native_process_passes": 8,
   "native_characters": [
     "Pilot",
     "Hunter"
@@ -26,9 +27,10 @@
   "graphical_guest_HUD_verified": true,
   "native_sound_event_dispatch_verified": true,
   "audible_quality_tested": false,
-  "normal_save_files_unchanged": 9,
-  "previous_release_files_unchanged": 110,
-  "test_audio": "PostEvent output suppressed; -nosound; listener paused. No listening test.",
+  "normal_nonlog_files_unchanged_since_resumed_baseline": 8,
+  "normal_file_baseline_scope": "Fresh baseline after the user closed their ordinary Steam session; game logs excluded. Earlier concurrent user play is not attributed to diagnostics.",
+  "previous_release_files_unchanged": 206,
+  "test_audio": "-nosound, paused Unity listener, all-overload PostEvent output suppression. No listening test.",
   "test_windows": "800x600 windowed, WS_EX_NOACTIVATE, cursor None, background simulation",
   "computer_use": false,
   "full_campaign_tested": false,
@@ -38,8 +40,6 @@
   "known_blockers": [
     "Fourth-floor Sell Creep layout mismatch remains unresolved. Geometry barrier stops the run."
   ],
-  "native_test_method": "Two local artificial move/fire/native-damage and forced tt5 transition scenarios, followed by native guest health/armor/consumable changes and acquisition of gun 15 / active item 108. Graphical HUD repaint and PNG inspection; real first-floor weapon sound capture, switch transport and native client PostEvent invocation with output suppressed.",
-  "all_enemy_assets_tested": false,
-  "additional_latency_improvement_claimed": false,
+  "additional_latency_improvement_claimed": "Local native input-sample to presented movement only; no physical two-PC/Radmin guarantee.",
   "uploaded": false
 }

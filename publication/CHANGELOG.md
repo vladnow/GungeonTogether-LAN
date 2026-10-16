@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.5
+
+- Send compact player motion separately at up to 60 Hz and full world snapshots at up to 30 Hz. Capture after native physics and acknowledge input consumed by the native player controller.
+- Preserve the guest input/send cadence through frame jitter. Coalesce unsent movement states while retaining reliable action edges.
+- Add optional bounded visual prediction for ordinary guest walking, including the attached gun/hands/outlines and guest camera. Keep native damage and interactions authoritative on the host.
+- Check terrain and blocking bodies before presenting predicted lead. Disable/reset replay for pause, rolls, input overrides, stale motion, room changes and teleports. Provide Network / ClientMovementPrediction to disable it.
+- Use adaptive world interpolation, initially 40 ms and bounded to 35-90 ms. Report actual smoothing in the menu.
+- Retain the graphical guest HUD, combat sound relay, independent cameras and resource/layout checks. Require 0.3.5 on both peers.
+- Make public packages English only. Exclude local agent instructions, localized documents and obsolete launcher files. Browser repository uploads still require explicit deletion of old tracked files.
+- Keep the unresolved fourth-floor Sell Creep layout mismatch and incomplete campaign coverage explicit. Local response measurements do not establish two-PC/Radmin latency.
+
 ## 0.3.4
 
 - Replace the guest text box with a graphical, host-authoritative HUD using local heart/armor/blank/cash/key and equipped gun/item icons; include max health, magazine capacity/count, reload and item-charge state.

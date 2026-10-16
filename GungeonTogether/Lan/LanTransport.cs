@@ -16,7 +16,7 @@ namespace GungeonTogether.Lan
         public const int MaxFrame = 524288;
         private const int MaxQueuedBytes = 2097152;
         private const int CompressedFrame = 0x40000000;
-        private const string Magic = "GungeonTogether-LAN-dungeon-0.3.4";
+        private const string Magic = "GungeonTogether-LAN-dungeon-0.3.5";
         private Socket listener, peer;
         private IAsyncResult connecting;
         private byte[] incoming = new byte[65536];
