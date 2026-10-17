@@ -1,57 +1,40 @@
-# Validation of 0.3.6 alpha
+# Validation: 0.3.7 alpha
 
-Date: 2026-10-16. **Runtime SHA-256: `e741dcb4b8ba6c27edc75068e58009bb9ee7d1a920462242a911a6fb18c45f98`.** All three final native scenarios used this exact DLL.
+Date: 2026-10-18. Runtime SHA-256: 6b6a7302faaef3049e64b98af4333f19824f792128b2b5e65e9b08356e2a2066.
 
-**Early-floor alpha. The fourth-floor Sell Creep layout mismatch remains unresolved. A complete natural campaign is not established.**
-
-## Changes under test
-
-The host sends cumulative native secret-room presentation state and the guest's full gun/active/passive/synergy lists when changed, sampled at up to 4 Hz. They use independent latest-state message keys. Old-floor state is ignored. Inventory counts, IDs, secret-room coordinates/flags and duplicate room identities are bounded/validated.
-
-The mirror removes opened native secret ceiling/door meshes and blockers, clears corresponding secret-cell flags, updates visibility/occlusion and reveals the room on its minimap. It does not call client room-entry gameplay, OpenDoor or discovery-stat setters. Closed secrets remain concealed. Other arbitrary tilemap damage and every special puzzle remain outside established coverage.
-
-The native Ammonomicon equipment page uses scoped read-only inventory readers and the selected guest identity. The native function still constructs the page and resolves local encounter icons. No pickup grants, item callbacks or client placeholder inventory mutations populate it. Native UI sprites are excluded from world-sprite hiding. Guest walking/input prediction is muted while its book is open. Collection-unlock history, every death-book field and all map/shop/dialogue interfaces are not synchronized by this change.
-
-Coins and ordinary keys retain the native shared consumables object. The host rebinds player two to the primary budget if needed, without adding two balances. Ghost persistence and native revival rules remain; no automatic floor-change resurrection is added.
+Built against the installed Steam Enter the Gungeon 2.1.9 managed assemblies and BepInEx 5. The exact DLL above was used by all four current-version native scenarios below. Packaging is not publication.
 
 ## Automated checks
 
-**330 checks passed:** transport 34, dungeon protocol 85, profile policy 19, rendering/characters 38, display migration 9, input acknowledgements 9, sprite visibility 20, constrained real-socket transport 24, HUD/audio presentation 30, movement responsiveness 31, and inventory/secret-state protocol 31.
+**356 checks passed**, plus **62 managed native binding checks**. Suites: transport 34; dungeon protocol 85; profile 19; rendering/characters 38; display 9; acknowledgements 9; sprite visibility 20; shaped transport freshness/latency 24; HUD/audio protocol 30; responsiveness 34; inventory/secrets 31; scene effects 23. Audio targets include all twelve managed PostEvent overloads and both switch overloads.
 
-New checks cover complete ordered inventories, stacked passives, character/floor identity, empty ghost inventory, count/ID bounds before allocation, first-send/unchanged/changed state caching, closed/open mesh flags, coordinate overflow, duplicate rooms, malformed/trailing payloads and rejection of a 0.3.5 peer.
+The new checks cover bounded surface/text packets, invalid hazard/style data, native status-material tint transport, walking correction continuity/convergence and WASD's additional menu-navigation bindings. Reload/weapon cycling and menu navigation must not disable walking prediction.
 
-**41 exact native managed binding contracts passed** against installed Steam Enter the Gungeon 2.1.9 libraries. These include the native equipment-page patch and secret-opening guards. The equipment-page transpiler validates that all expected native inventory readers exist. Compilation used installed game/BepInEx libraries rather than mocks.
+## Actual native game processes
 
-## Final native gameplay cases
+Four scenarios passed using **eight current-version native processes**. Each retains two matching native floor-layout handshakes and the base remote movement/fire/projectile-damage smoke checks.
 
-Two local game processes per case, Pilot host and Hunter or Pilot guest. Each passed ordinary artificial remote movement/fire and projectile damage to an AI-disabled Bullet Kin, equal first/second-floor layout barriers and a forced native transition to tt5. The ghost-aware private verifier expects no equipped gun for an intentionally dead player and verifies its chosen native identity instead.
+- Pilot and Hunter feedback scenarios: actual native HUD controllers/counters, hidden duplicate HUD, distinct shoot/interact physical mapping, opening an ordinary door for separated players without forced movement, preserving a locked door, native textbox text and conversation-button choices, native poison/fire cells and mesh renderers, live native fire particles, host damage, guest native damage-shader activation, replicated player tint and hurt-event dispatch. Local placeholder health is not damaged to present feedback.
+- Keyboard responsiveness: twelve synthetic short walk pulses with the additional menu-navigation bits produced by native WASD bindings. Native pause/input-override/roll, teleport-history reset and wall/pit clipping guards were exercised.
+- Gameplay regression: native opened-secret geometry, acquired gun/active/passive icons in the actual guest equipment page, unchanged placeholder inventories, shared native coin/key pickups and spending, forced ghost persistence across a floor change and a native resurrection call. The private UI probe advances an internal focus flag and skips queued unlock cards without activating the window; it does not change production behavior.
 
-Both cases checked:
+All game tests use private game copies and isolated save/loader profiles. They run **without sound**, at **800x600 windowed**, with **WS_EX_NOACTIVATE**, an unconstrained cursor and background simulation. No Computer Use or foreground keyboard/mouse automation is used. Native sound-event dispatch is checked without listening.
 
-- A first-floor native secret manager begins closed on both PCs. Calling the host's native OpenDoor exposes the client's native ceiling/door geometry and removes its blocker. After a controlled warp, the mirror's player is in that room and the interior renders in an actual screenshot.
-- The client's discovery-stat value stays unchanged during visual reveal. No independent client room-entry combat events are used.
-- Forced zero native health plus native BecomeGhost establishes a ghost before the floor load. It remains a ghost on the next floor, and the client receives that state. Calling the native boss-reward resurrection function restores the selected guest and reaches the client.
-- Host and guest consumables are the same object. Native coin pickup 68 by the host and key pickup 67 by the guest credit the common budget. Spending from either player debits it. The client HUD receives the resulting 6 coins and 1 key.
-- Native acquisition of gun 15, active item 108 and passive item 102 reaches the guest's complete equipment lists. The actual native book draws the corresponding AK-47, Bomb and Scope encounter icons, keeps their renderers visible and identifies the guest hero. Both local placeholder inventories remain unchanged.
+## Local keyboard comparison
 
-The Hunter page had six native equipment icons and the Pilot page had seven. Actual secret-room and book screenshots were inspected for both final cases. Screenshots and game resources are not distributed.
+Same synthetic walk pattern and menu-navigation bits, twelve starts per version:
 
-The private book probe advances its internal animation focus flag without activating the OS window, and bypasses queued unlock-notification cards so the equipment page can be inspected without keyboard interaction. These adjustments are confined to the private probe and do not change production book/unlock behavior.
+| Runtime | Median | P95 |
+| --- | ---: | ---: |
+| 0.3.6 | 30.365 ms | 71.476 ms |
+| 0.3.7 | 14.961 ms | 41.424 ms |
 
-The ghost fixture does not exercise the complete natural lethal-damage animation, item-drop sequence, boss defeat, pedestal landing or chest interaction. In the installed native code, boss rewards and revival chests can invoke resurrection; a floor load alone preserves ghost state. A screenshot of a floor entrance cannot establish whether an expected earlier revival failed.
+Metric: input sample to at least 0.0625 game units of presented displacement in a local client. The old baseline explicitly confirms that those menu bits disable walking prediction. These are **not** physical-PC/Radmin ping, real keyboard/input-to-photon or damage-latency measurements. Small samples and background frame-time variation limit precision.
 
-## Movement regression
+## Preservation and limits
 
-A third final native pair, with Pilot guest, repeated twelve synthetic walking starts on a controlled clear lane. Input sample to at least 0.0625 game units of presented displacement: **median 10.609 ms, p95 25.005 ms**. Prediction, attached guest-owned sprite parts, native wall/pit queries, host pause/input override/roll and teleport reset checks passed.
+All 432 prior release files retain their hashes. All eight tracked normal non-log save/profile files retain write times from before these tests and match the current checkpoint. One normal save already differed from the older 0.3.6 checkpoint before this work began; it was preserved, not restored over newer progress.
 
-This is a local loopback presentation measurement, not hardware input-to-photon latency, damage confirmation or a physical two-PC/Radmin result. Historical 0.3.5 methodology/results remain under validation/responsiveness-035 and publication/VALIDATION-0.3.5.md. This release does not introduce a new latency algorithm beyond 0.3.5.
+No full natural campaign, full natural death/boss/chest cycle, fresh mod-manager ZIP import or remote upload was performed. The fourth-floor Sell Creep layout mismatch remains unresolved. The specific reported dark halo still needs a remote visual comparison. An ordinary-door restriction was identified, but not every room-transition lock was reproduced. Full inventory foldouts, dual wield, all item-specific layouts, arbitrary dynamic/modded goops and general particle/gas-cloud replication remain outside established coverage. Audible quality needs a listening test.
 
-## Safety and remaining limits
-
-All six final game processes passed 800x600 windowed, background, cursor-unlocked and no-activate desktop checks. Output was disabled with -nosound, paused Unity listeners and all-overload diagnostic PostEvent suppression. No Computer Use or listening test was used. Owned test processes were stopped after pass markers; later peer-disconnect messages are controlled teardown.
-
-All eight baseline non-log files in the normal save directory and all 318 recorded prior release files retained their hashes. Private test saves could change. The Russian owner-only GitHub guide was updated before taking this release baseline; prior runtime/source ZIPs were not replaced.
-
-No physical two-PC/Radmin test, fresh manager import, complete natural campaign, all secret puzzles/items/synergies, full death/boss/chest cycle or modpack compatibility is established. Native shopping, some materials/effects/beams and arbitrary dynamic tilemap changes remain incomplete. Music/ambience, every looping-sound/RTPC/callback variant and audible coverage retain earlier limits. Active-run reconnection/host migration are not implemented. No public upload was performed.
-
-Sanitized evidence: validation/summary.json and validation/gameplay-036/native-summary.json. Earlier reports remain historical. Raw private probes, paths, logs and native screenshots are excluded from public packages.
+See validation/feedback-037/native-summary.json in the source package for sanitized evidence. Raw logs, diagnostic DLLs, save fixtures, host generation envelopes and screenshots remain private. This remains an early-floor alpha, not a full-run recommendation.

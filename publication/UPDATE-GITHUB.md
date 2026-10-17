@@ -15,6 +15,7 @@ AGENTS.md
 Build-Launcher.ps1
 GungeonTogether-LAN.exe
 launcher/Launcher.cs
+GungeonTogether/Lan/ClientHud.cs
 README.ru.md
 publication/README.ru.md
 publication/INSTALL-PROFILES.ru.md

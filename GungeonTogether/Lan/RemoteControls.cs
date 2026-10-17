@@ -86,6 +86,10 @@ namespace GungeonTogether.Lan
         {
             InputControlType[] axes = { InputControlType.LeftStickLeft, InputControlType.LeftStickRight, InputControlType.LeftStickUp, InputControlType.LeftStickDown, InputControlType.RightStickLeft, InputControlType.RightStickRight, InputControlType.RightStickUp, InputControlType.RightStickDown };
             if (action < 8) return axes[action];
+            // Native menus also read Device.Action1 directly. Keep that physical
+            // button reserved for Interact; Shoot must never masquerade as it.
+            if (action == 8) return InputControlType.RightTrigger;
+            if (action == 10) return InputControlType.Action1;
             if (action < 20) return (InputControlType)((int)InputControlType.Action1 + action - 8);
             if (action < 40) return (InputControlType)((int)InputControlType.Button0 + action - 20);
             return InputControlType.Back;

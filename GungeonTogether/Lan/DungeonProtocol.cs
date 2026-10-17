@@ -4,7 +4,7 @@ using System.IO;
 
 namespace GungeonTogether.Lan
 {
-    public enum DungeonMessage : byte { Input = 2, Level = 3, Ready = 4, Snapshot = 5, Collection = 6, Stop = 7, Character = 8, Audio = 9, Motion = 10, Equipment = 11, Secrets = 12 }
+    public enum DungeonMessage : byte { Input = 2, Level = 3, Ready = 4, Snapshot = 5, Collection = 6, Stop = 7, Character = 8, Audio = 9, Motion = 10, Equipment = 11, Secrets = 12, SceneEffects = 13 }
 
     public sealed class RemoteInput
     {
@@ -75,18 +75,18 @@ namespace GungeonTogether.Lan
     {
         public int Id, CollectionId, SpriteId, SortingOrder;
         public float X, Y, Z, Rotation, ScaleX, ScaleY, ScaleZ, Height;
-        public uint Color;
+        public uint Color, OverrideColor;
         public byte Flags, Layer, Kind, Anchor;
         public float Width, HeightPixels, ClipX, ClipY, ClipRight = 1, ClipTop = 1;
         public void Write(BinaryWriter w)
         {
             w.Write(Id); w.Write(CollectionId); w.Write(SpriteId); w.Write(SortingOrder);
-            w.Write(X); w.Write(Y); w.Write(Z); w.Write(Rotation); w.Write(ScaleX); w.Write(ScaleY); w.Write(ScaleZ); w.Write(Height); w.Write(Color); w.Write(Flags); w.Write(Layer);
+            w.Write(X); w.Write(Y); w.Write(Z); w.Write(Rotation); w.Write(ScaleX); w.Write(ScaleY); w.Write(ScaleZ); w.Write(Height); w.Write(Color); w.Write(OverrideColor); w.Write(Flags); w.Write(Layer);
             w.Write(Kind); w.Write(Anchor); w.Write(Width); w.Write(HeightPixels); w.Write(ClipX); w.Write(ClipY); w.Write(ClipRight); w.Write(ClipTop);
         }
         public static SpriteState Read(BinaryReader r)
         {
-            SpriteState value = new SpriteState { Id = r.ReadInt32(), CollectionId = r.ReadInt32(), SpriteId = r.ReadInt32(), SortingOrder = r.ReadInt32(), X = r.ReadSingle(), Y = r.ReadSingle(), Z = r.ReadSingle(), Rotation = r.ReadSingle(), ScaleX = r.ReadSingle(), ScaleY = r.ReadSingle(), ScaleZ = r.ReadSingle(), Height = r.ReadSingle(), Color = r.ReadUInt32(), Flags = r.ReadByte(), Layer = r.ReadByte() };
+            SpriteState value = new SpriteState { Id = r.ReadInt32(), CollectionId = r.ReadInt32(), SpriteId = r.ReadInt32(), SortingOrder = r.ReadInt32(), X = r.ReadSingle(), Y = r.ReadSingle(), Z = r.ReadSingle(), Rotation = r.ReadSingle(), ScaleX = r.ReadSingle(), ScaleY = r.ReadSingle(), ScaleZ = r.ReadSingle(), Height = r.ReadSingle(), Color = r.ReadUInt32(), OverrideColor = r.ReadUInt32(), Flags = r.ReadByte(), Layer = r.ReadByte() };
             value.Kind = r.ReadByte(); value.Anchor = r.ReadByte(); value.Width = r.ReadSingle(); value.HeightPixels = r.ReadSingle(); value.ClipX = r.ReadSingle(); value.ClipY = r.ReadSingle(); value.ClipRight = r.ReadSingle(); value.ClipTop = r.ReadSingle();
             if (value.Id == 0 || value.CollectionId < 1 || value.CollectionId > 4096 || value.SpriteId < 0 || value.SpriteId > 100000 || (value.Flags & ~31) != 0 || value.Layer > 31) throw new IOException("Invalid sprite snapshot.");
             Wire.Range(value.X, -100000, 100000); Wire.Range(value.Y, -100000, 100000); Wire.Range(value.Z, -100000, 100000);

@@ -52,5 +52,21 @@ namespace GungeonTogether.Lan
             // rejected location into a valid one or remove wall/pit collisions.
             private static bool Prefix() { return !ActiveHost; }
         }
+        [HarmonyPatch(typeof(DungeonDoorController), "CheckForPlayerCollision")]
+        private static class SeparateDoorEntry
+        {
+            private static bool Prefix(DungeonDoorController __instance, SpeculativeRigidbody otherRigidbody, Vector2 normal)
+            {
+                if (!ActiveHost || __instance.Mode != DungeonDoorController.DungeonDoorMode.COMPLEX) return true;
+                if (__instance.IsSealed || __instance.isLocked || __instance.IsOpen || otherRigidbody == null || otherRigidbody.GetComponent<PlayerController>() == null) return true;
+                // Native shared-screen entry requires BOTH players within 0.3
+                // units and then forces their movement. Separate views need no
+                // proximity gate. Open still enforces native locks/seals; room
+                // battle regrouping is left to HandleCoopSpecificTimers.
+                bool flipped = (__instance.northSouth && normal.y < 0) || (!__instance.northSouth && normal.x < 0);
+                __instance.Open(flipped);
+                return false;
+            }
+        }
     }
 }

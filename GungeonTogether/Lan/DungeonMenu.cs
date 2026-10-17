@@ -82,10 +82,6 @@ namespace GungeonTogether.Lan
         {
             if (transport == null) return;
             if (Session != null && Session.Mirroring && InventoryBook.BookOpen) InventoryBook.DrawCaption(Session);
-            if (Session != null && Session.Mirroring && Session.Snapshot != null && (!visible || IsSmoke) && (!IsSmoke || presentationProbe)) {
-                try { if (!InventoryBook.BookOpen) clientHud.Draw(Session.Snapshot); }
-                catch (Exception ex) { if (!hudErrorLogged) { hudErrorLogged = true; Logger.LogWarning("GT_CLIENT_HUD: " + ex); } }
-            }
             if (IsSmoke && !smokeMenuVisible) return;
             InitMenuStyles();
             if (!visible) return;
@@ -111,7 +107,7 @@ namespace GungeonTogether.Lan
             Fill(new Rect(28, 21, 8, 5), Gold);
             Fill(new Rect(24, 50, 16, 3), Border);
             GUI.Label(new Rect(55, 18, 480, 39), "GUNGEON TOGETHER", menuTitle);
-            GUI.Label(new Rect(55, 59, 490, 23), "NETWORK CO-OP   /   LAN 0.3.6 · ALPHA", menuSmall);
+            GUI.Label(new Rect(55, 59, 490, 23), "NETWORK CO-OP   /   LAN 0.3.7 · ALPHA", menuSmall);
             if (MenuButton(new Rect(550, 23, 36, 32), "×", true, false)) visible = false;
 
             if (!UsesSeparateProfile) {
@@ -158,6 +154,7 @@ namespace GungeonTogether.Lan
             string status = error.Length != 0 ? error : transport.Connected ? link : transport.Active ? "Check the address and room code on both PCs." : hostTab ? "Share your Radmin / LAN IPv4 and room code with your friend." : "Both players must be on the same LAN or Radmin network.";
             if (error.Length == 0 && Session != null && Session.InRun && Session.Phase != DungeonSession.RunPhase.Running) status = Session.Status;
             if (showNetworkDetails) status = (transport.Connected ? link + " · queue " + transport.PendingBytes / 1024 + " KiB\n" : transport.Status + "\n") + (Session == null ? "" : Session.Status) + (error.Length == 0 ? "" : "\n" + error);
+            if (showNetworkDetails && Session != null && Session.MovementBlockReason.Length > 0) status += "\nPlayer two controls: " + Session.MovementBlockReason;
             GUI.Label(new Rect(28, 465, 558, 54), status, menuSmall);
             if (MenuButton(new Rect(28, 534, 248, 30), "DISCONNECT / FOYER", transport.Active || (Session != null && Session.InRun), false)) ReturnToFoyer();
             if (MenuButton(new Rect(290, 534, 142, 30), "DETAILS", true, false)) showNetworkDetails = !showNetworkDetails;

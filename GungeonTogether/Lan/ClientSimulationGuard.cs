@@ -41,7 +41,9 @@ namespace GungeonTogether.Lan
 
             RoomHandler previous = player.CurrentRoom;
             CurrentRoomField.SetValue(player, room);
-            if (previous != null) {
+            bool shared = false;
+            foreach (PlayerController other in GameManager.Instance.AllPlayers) if (other != null && other != player && other.CurrentRoom == previous) shared = true;
+            if (previous != null && !shared) {
                 CurrentlyVisibleField.SetValue(previous, false);
                 previous.visibility = RoomHandler.VisibilityStatus.VISITED;
             }
@@ -57,6 +59,12 @@ namespace GungeonTogether.Lan
                 Pixelator.Instance.ProcessOcclusionChange(position, 1f, room, false);
                 Pixelator.Instance.ProcessRoomAdditionalExits(position, room, false);
             }
+            ShadowSystem.ForceRoomLightsUpdate(room, .1f);
+        }
+        internal static void MovePlaceholder(PlayerController player, UnityEngine.Vector2 position)
+        {
+            player.transform.position = new UnityEngine.Vector3(position.x, position.y, player.transform.position.z);
+            if (player.specRigidbody != null) player.specRigidbody.Position = new Position(position);
         }
     }
 }

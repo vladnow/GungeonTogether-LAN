@@ -26,7 +26,6 @@ namespace GungeonTogether.Lan
         private Projectile[] localProjectiles = new Projectile[0];
         private float nextActorRefresh;
         private bool seeded, suppressing, disposed;
-        private GameUIRoot hud;
         private readonly SnapshotBuffer<WorldSnapshot> frames = new SnapshotBuffer<WorldSnapshot>(.04, true);
         public readonly MovementPrediction Prediction = new MovementPrediction();
         public bool PredictionEnabled = true;
@@ -58,7 +57,7 @@ namespace GungeonTogether.Lan
         public void Define(CollectionInfo info) { definitions[info.Id] = info; descriptors[info.Id] = SpriteCollectionDescriptor.Parse(info.Name); }
 
         private static bool IsUserInterface(Component component)
-        { return component != null && (component.GetComponentInParent<dfGUIManager>() != null || component.GetComponentInParent<AmmonomiconPageRenderer>() != null); }
+        { return component != null && (component.GetComponentInParent<dfGUIManager>() != null || component.GetComponentInParent<AmmonomiconPageRenderer>() != null || component.GetComponentInParent<NetworkHudAsset>() != null || component.GetComponentInParent<TextBoxManager>() != null || component.GetComponentInParent<NetworkPresentationAsset>() != null); }
 
         internal void Observe(tk2dBaseSprite sprite)
         {
@@ -179,6 +178,9 @@ namespace GungeonTogether.Lan
                     Height = sprite.HeightOffGround, Color = (uint)(color.r | color.g << 8 | color.b << 16 | color.a << 24), Flags = (byte)((sprite.FlipX ? 1 : 0) | (sprite.FlipY ? 2 : 0) | (sprite.ShouldDoTilt && sprite.IsPerpendicular ? 4 : 0) | (sprite.ShouldDoTilt ? 8 : 0)), Layer = (byte)sprite.gameObject.layer
                 };
                 if (guestPart) state.Flags |= 16;
+                if (materialMode == 0 && renderer.sharedMaterial != null && renderer.sharedMaterial.HasProperty("_OverrideColor")) {
+                    Color32 tint = renderer.sharedMaterial.GetColor("_OverrideColor"); state.OverrideColor = (uint)(tint.r | tint.g << 8 | tint.b << 16 | tint.a << 24);
+                }
                 tk2dTiledSprite tiled = sprite as tk2dTiledSprite;
                 tk2dSlicedSprite sliced = sprite as tk2dSlicedSprite;
                 tk2dClippedSprite clipped = sprite as tk2dClippedSprite;
@@ -282,10 +284,20 @@ namespace GungeonTogether.Lan
         {
             int mode = descriptors[state.CollectionId].MaterialMode;
             Material material;
-            if (mode == 0) {
+            if (mode == 0 && (state.OverrideColor >> 24) == 0) {
                 if (proxyMaterials.TryGetValue(state.Id, out material)) { UnityEngine.Object.Destroy(material); proxyMaterials.Remove(state.Id); }
                 sprite.usesOverrideMaterial = false; sprite.IsOutlineSprite = false; sprite.IsBraveOutlineSprite = false;
                 sprite.ForceUpdateMaterial(); return;
+            }
+            if (mode == 0) {
+                Material original = collection.spriteDefinitions[state.SpriteId].materialInst;
+                if (!proxyMaterials.TryGetValue(state.Id, out material) || material == null || material.shader != original.shader) {
+                    if (material != null) UnityEngine.Object.Destroy(material);
+                    material = new Material(original); material.hideFlags = HideFlags.DontSave; proxyMaterials[state.Id] = material;
+                }
+                material.mainTexture = original.mainTexture;
+                material.SetColor("_OverrideColor", new Color32((byte)state.OverrideColor, (byte)(state.OverrideColor >> 8), (byte)(state.OverrideColor >> 16), (byte)(state.OverrideColor >> 24)));
+                sprite.usesOverrideMaterial = true; sprite.GetComponent<Renderer>().sharedMaterial = material; return;
             }
             string shaderName = mode == 1 ? "Brave/Internal/SinglePassOutline" : "tk2d/SpriteOutlineCutout";
             if (!proxyMaterials.TryGetValue(state.Id, out material) || material == null || material.shader == null || material.shader.name != shaderName) {
@@ -386,7 +398,7 @@ namespace GungeonTogether.Lan
             }
             PlayerController local = GameManager.Instance.PrimaryPlayer;
             if (local != null) {
-                local.transform.position = new Vector3(RemotePlayerPosition.x, RemotePlayerPosition.y, local.transform.position.z);
+                ClientSimulationGuard.MovePlaceholder(local, RemotePlayerPosition);
                 Dungeonator.RoomHandler room = GameManager.Instance.Dungeon.data.GetAbsoluteRoomFromPosition(new IntVector2((int)Math.Floor(RemotePlayerPosition.x), (int)Math.Floor(RemotePlayerPosition.y)));
                 if (room != null && room != local.CurrentRoom) ClientSimulationGuard.UpdatePlaceholderRoom(local, room);
             }
@@ -441,11 +453,6 @@ namespace GungeonTogether.Lan
                 Disable(projectile); if (projectile.specRigidbody != null) projectile.specRigidbody.Velocity = Vector2.zero;
             }
             disabled.Enforce(); hidden.Enforce();
-            if (GameUIRoot.Instance != null && hud != GameUIRoot.Instance) {
-                hud = GameUIRoot.Instance; hud.HideCoreUI("GT_NetworkHUD");
-                hud.ToggleLowerPanels(false, false, "GT_NetworkHUD");
-                hud.ToggleAllDefaultLabels(false, "GT_NetworkHUD");
-            }
         }
 
         private void BeforeCameraCull(Camera camera)
@@ -467,7 +474,6 @@ namespace GungeonTogether.Lan
             hidden.Restore(); disabled.Restore();
             foreach (KeyValuePair<HealthHaver, bool> pair in protectedHealth) if (pair.Key != null) pair.Key.PreventAllDamage = pair.Value;
             protectedHealth.Clear();
-            if (hud != null) { hud.ShowCoreUI("GT_NetworkHUD"); hud.ToggleLowerPanels(true, false, "GT_NetworkHUD"); hud.ToggleAllDefaultLabels(true, "GT_NetworkHUD"); }
             foreach (PlayerController player in UnityEngine.Object.FindObjectsOfType<PlayerController>()) player.ClearInputOverride("GT_NetworkClient");
             nativeSprites.Clear(); knownSprites.Clear(); localPlayers = new PlayerController[0]; localEnemies = new AIActor[0]; localProjectiles = new Projectile[0];
             LastSnapshot = null;
