@@ -1,21 +1,11 @@
 {
-  "version": "0.3.5",
-  "date": "2026-10-16",
-  "runtime_sha256": "96c874eecead6eb57a668b3e3f605938900cff86ad33c7af62feb38a32924dbf",
+  "version": "0.3.7",
+  "date": "2026-10-18",
+  "runtime_sha256": "6b6a7302faaef3049e64b98af4333f19824f792128b2b5e65e9b08356e2a2066",
   "ready_for_alpha_review": true,
   "development_preview": false,
-  "automated_checks": 298,
-  "lan_checks": 33,
-  "dungeon_protocol_checks": 85,
-  "profile_checks": 19,
-  "rendering_character_checks": 38,
-  "display_profile_checks": 9,
-  "input_acknowledgement_checks": 9,
-  "sprite_visibility_checks": 20,
-  "transport_latency_checks": 24,
-  "presentation_checks": 30,
-  "responsiveness_checks": 31,
-  "native_binding_checks": 38,
+  "automated_checks": 356,
+  "native_binding_checks": 62,
   "launcher_built": false,
   "dungeon_smoke_passes": 4,
   "native_process_passes": 8,
@@ -23,23 +13,30 @@
     "Pilot",
     "Hunter"
   ],
-  "highest_main_floor_verified": 2,
-  "graphical_guest_HUD_verified": true,
-  "native_sound_event_dispatch_verified": true,
+  "native_feedback_scenarios": 2,
+  "normal_nonlog_files_preserved": 8,
+  "old_save_difference_predates_current_tests": true,
+  "previous_release_files_unchanged": 432,
+  "physical_pcs_radmin_tested": false,
   "audible_quality_tested": false,
-  "normal_nonlog_files_unchanged_since_resumed_baseline": 8,
-  "normal_file_baseline_scope": "Fresh baseline after the user closed their ordinary Steam session; game logs excluded. Earlier concurrent user play is not attributed to diagnostics.",
-  "previous_release_files_unchanged": 206,
-  "test_audio": "-nosound, paused Unity listener, all-overload PostEvent output suppression. No listening test.",
-  "test_windows": "800x600 windowed, WS_EX_NOACTIVATE, cursor None, background simulation",
   "computer_use": false,
   "full_campaign_tested": false,
-  "physical_pcs_radmin_tested": false,
   "fresh_manager_ZIP_import_tested": false,
+  "uploaded": false,
   "recommended_for_full_runs": false,
   "known_blockers": [
-    "Fourth-floor Sell Creep layout mismatch remains unresolved. Geometry barrier stops the run."
+    "Fourth-floor Sell Creep map mismatch remains unresolved."
   ],
-  "additional_latency_improvement_claimed": "Local native input-sample to presented movement only; no physical two-PC/Radmin guarantee.",
-  "uploaded": false
+  "movement_keyboard_baseline_036_local": {
+    "median_ms": 30.365,
+    "p95_ms": 71.476,
+    "trials": 12
+  },
+  "movement_keyboard_037_local": {
+    "median_ms": 14.961,
+    "p95_ms": 41.424,
+    "trials": 12
+  },
+  "test_audio": "-nosound, paused listener and native playback suppression; no listening",
+  "test_windows": "800x600 windowed, WS_EX_NOACTIVATE, unconstrained cursor, background simulation"
 }

@@ -26,9 +26,12 @@ namespace GungeonTogether.Lan
         private bool loadingCommand;
         private readonly InputAcknowledgements inputAcks = new InputAcknowledgements();
         private readonly WorldPresentation presentation = new WorldPresentation();
+        public readonly NativeHud Hud = new NativeHud();
+        internal readonly ScenePresentation SceneEffects = new ScenePresentation();
         public InventoryState Equipment { get; private set; }
         internal InventoryBook Book { get; private set; }
         public int RevealedSecretRooms { get { return presentation.AppliedSecretRooms; } }
+        public string MovementBlockReason { get { return SceneEffects.MovementBlock; } }
         private float nextNetworkLog;
         public double InputLatencyMs { get { return inputAcks.Milliseconds; } }
         private int hostCharacter = 1;
@@ -81,7 +84,7 @@ namespace GungeonTogether.Lan
 
         private void SetGenerating()
         {
-            presentation.Reset(); Equipment = null; Book = null;
+            presentation.Reset(); Hud.Dispose(); SceneEffects.Dispose(); Equipment = null; Book = null;
             Audio.Dispose(); Audio = new AudioReplication();
             Phase = RunPhase.Generating; deadline = Time.realtimeSinceStartup + 120;
             transport.InactivityTimeout = 120; inputAcks.Clear();
@@ -143,8 +146,8 @@ namespace GungeonTogether.Lan
         public void LateUpdate()
         {
             if (!Mirroring || GameManager.Instance.IsLoadingLevel) return;
-            try { sprites.PredictionEnabled = EnableMovementPrediction && !MuteClientInput && !InventoryBook.BookOpen; sprites.Render(Time.realtimeSinceStartup); }
-            catch (Exception ex) { Fail(ex.Message); }
+            try { sprites.PredictionEnabled = EnableMovementPrediction && !MuteClientInput && !InventoryBook.BookOpen; sprites.Render(Time.realtimeSinceStartup); Hud.Update(Snapshot); }
+            catch (Exception ex) { log("GT_PRESENTATION_ERROR: " + ex); Fail(ex.Message); }
         }
 
         // The acknowledgements describe input actually consumed by native player
@@ -164,6 +167,7 @@ namespace GungeonTogether.Lan
                     transport.SendLatest(value.Encode());
                 }
                 presentation.Capture(epoch, GuestCharacter, now, transport.SendLatest);
+                SceneEffects.Capture(epoch, now, transport.SendLatest);
                 transport.FlushPending();
             } catch (Exception ex) { Fail(ex.Message); }
         }
@@ -187,9 +191,12 @@ namespace GungeonTogether.Lan
             }
             aim = aim.sqrMagnitude > 0.0001f ? aim.normalized : Vector2.right;
             input.MoveX = move.x; input.MoveY = move.y; input.AimX = aim.x; input.AimY = aim.y;
+            EffectsState ui = SceneEffects.LastState;
+            bool dialogue = ui != null && (ui.Responses.Count > 0 || ui.Boxes.Count > 0);
             for (int i = 8; i < 41; i++) {
                 // Pause, map/equipment menus and character-specific punchout are host-only in this alpha.
                 if (i == 13 || i == 19 || i == 26 || i >= 34) continue;
+                if (!dialogue && ((i >= 20 && i <= 24) || i == 29)) continue;
                 InControl.PlayerAction action = a.GetActionFromType((GungeonActions.GungeonActionType)i);
                 if (action != null && action.IsPressed) input.Buttons |= 1UL << i;
             }
@@ -248,6 +255,7 @@ namespace GungeonTogether.Lan
                 if (type == DungeonMessage.Level) BeginClientLevel(LevelCommand.Decode(bytes));
                 else if (type == DungeonMessage.Collection) { CollectionInfo info = CollectionInfo.Decode(bytes); if (info.Epoch == epoch) sprites.Define(info); }
                 else if (type == DungeonMessage.Audio) { SoundBatch batch = SoundBatch.Decode(bytes); if (Mirroring) Audio.Receive(batch, epoch, Snapshot); }
+                else if (type == DungeonMessage.SceneEffects) { EffectsState state = EffectsState.Decode(bytes); if (Mirroring && state.Epoch == epoch) SceneEffects.Apply(state); }
                 else if (type == DungeonMessage.Equipment) {
                     InventoryState state = InventoryState.Decode(bytes);
                     if (Mirroring && state.Epoch == epoch) {
@@ -312,7 +320,7 @@ namespace GungeonTogether.Lan
 
         public void Dispose()
         {
-            presentation.Reset(); Equipment = null; Book = null;
+            presentation.Reset(); Hud.Dispose(); SceneEffects.Dispose(); Equipment = null; Book = null;
             if (controls != null) { controls.Dispose(); controls = null; }
             sprites.Dispose();
             Audio.Dispose();

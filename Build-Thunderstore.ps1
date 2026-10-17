@@ -28,7 +28,8 @@ $sidecars = @{}
 $sidecars[$releaseNotesName] = Join-Path $publication $releaseNotesName
 $sidecars["VALIDATION-$version.md"] = Join-Path $publication 'VALIDATION.md'
 $sidecars["START-HERE-$version.md"] = Join-Path $publication 'START-HERE.md'
-$sidecars["UPDATE-GITHUB-$version.md"] = Join-Path $publication 'UPDATE-GITHUB.md'
+$ownerGuide = Join-Path $publication 'private\UPDATE-GITHUB.ru.md'
+$sidecars["UPDATE-GITHUB-$version.md"] = if (Test-Path -LiteralPath $ownerGuide) { $ownerGuide } else { Join-Path $publication 'UPDATE-GITHUB.md' }
 $sidecars["PUBLISH-THUNDERSTORE-$version.md"] = Join-Path $publication 'PUBLISH-THUNDERSTORE.md'
 foreach ($name in (@($packageName,$sourceName,$checksumName) + @($sidecars.Keys))) { if (Test-Path -LiteralPath (Join-Path $out $name)) { throw ('Refusing to overwrite release: ' + $name) } }
 $sourceFiles = @('README.md','Build-LAN.ps1','Build-Launcher.ps1','Build-Thunderstore.ps1','Test-LAN.ps1','Test-Dungeon.ps1','Test-Profile.ps1','Test-Rendering.ps1','Test-GameBindings.ps1','Test-Display.ps1','Test-Acknowledgements.ps1','Test-Latency.ps1','Test-SpriteVisibility.ps1','GungeonTogether\GungeonTogether.csproj','GungeonTogether\Networking\Players\RemotePlayerAvatar.cs','launcher\Launcher.cs','tests\LanTests.cs','tests\DungeonTests.cs','tests\ProfileTests.cs','tests\RenderingTests.cs','tests\DisplayProfileTests.cs','tests\AcknowledgementTests.cs','tests\TransportLatencyTests.cs','tests\SpriteVisibilityTests.cs','validation\summary.json','validation\latency-031\README.md','validation\latency-031\fifo-high-entropy.txt','validation\latency-031\latest-high-entropy.txt')
@@ -41,6 +42,8 @@ $sourceFiles += @('.gitignore','GungeonTogether.sln')
 # AGENTS.md belongs to the local development workspace, not public packages.
 $sourceFiles += @('Test-Presentation.ps1','tests\PresentationTests.cs','validation\presentation-034\README.md','validation\presentation-034\native-summary.json')
 $sourceFiles += @('Test-Responsiveness.ps1','tests\ResponsivenessTests.cs','validation\responsiveness-035\README.md','validation\responsiveness-035\native-summary.json')
+$sourceFiles += @('Test-Inventory.ps1','tests\InventoryTests.cs','validation\gameplay-036\README.md','validation\gameplay-036\native-summary.json')
+$sourceFiles += @('Test-Effects.ps1','tests\EffectsTests.cs','validation\feedback-037\README.md','validation\feedback-037\native-summary.json')
 $publicationSourceFiles = @('README.md','LICENSE','NOTICE.md','CHANGELOG.md','manifest.json','VALIDATION.md','INSTALL-PROFILES.md','Build-Icon.ps1','UPDATE-GITHUB.md','PUBLISH-THUNDERSTORE.md')
 $publicationSourceFiles += @(Get-ChildItem -LiteralPath $publication -Filter 'RELEASE-NOTES-*.md' -File | Select-Object -ExpandProperty Name)
 $publicationSourceFiles += @(Get-ChildItem -LiteralPath $publication -Filter 'VALIDATION-*.md' -File | Select-Object -ExpandProperty Name)
@@ -60,8 +63,9 @@ try {
 } finally { $sourceZip.Dispose() }
 $zip = [IO.Compression.ZipFile]::Open((Join-Path $out $packageName),[IO.Compression.ZipArchiveMode]::Create)
 try {
- foreach ($name in @('manifest.json','README.md','icon.png','CHANGELOG.md','LICENSE','NOTICE.md','INSTALL-PROFILES.md','VALIDATION.md','VALIDATION-0.3.0.md')) { Add-Entry $zip (Join-Path $publication $name) $name }
- Add-Entry $zip (Join-Path $publication $releaseNotesName) $releaseNotesName
+ # Runtime packages contain player-facing metadata/license and the runtime only.
+ # Development evidence and source stay in the source archive and sidecars.
+ foreach ($name in @('manifest.json','README.md','icon.png','CHANGELOG.md','LICENSE','NOTICE.md')) { Add-Entry $zip (Join-Path $publication $name) $name }
  Add-Entry $zip $runtime ('BepInEx/plugins/GungeonTogetherLAN/' + $dllName)
 } finally { $zip.Dispose() }
 $hashes = @(
@@ -70,6 +74,11 @@ $hashes = @(
  ((Get-FileHash -LiteralPath (Join-Path $out $sourceName) -Algorithm SHA256).Hash.ToLowerInvariant() + '  ' + $sourceName)
 )
 $hashes | Set-Content -LiteralPath (Join-Path $out $checksumName) -Encoding ascii
-foreach ($name in $sidecars.Keys) { [IO.File]::Copy($sidecars[$name], (Join-Path $out $name), $false) }
+foreach ($name in $sidecars.Keys) {
+ if ($sidecars[$name] -eq $ownerGuide) {
+  $ownerText = [IO.File]::ReadAllText($ownerGuide).Replace('__RELEASE_VERSION__', $version)
+  [IO.File]::WriteAllText((Join-Path $out $name), $ownerText, (New-Object Text.UTF8Encoding($false)))
+ } else { [IO.File]::Copy($sidecars[$name], (Join-Path $out $name), $false) }
+}
 Get-Item -LiteralPath (Join-Path $out $packageName),(Join-Path $out $sourceName) | Select-Object Name,Length
 Write-Output ('Release folder: ' + $out)

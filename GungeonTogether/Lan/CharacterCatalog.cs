@@ -13,6 +13,7 @@ namespace GungeonTogether.Lan
         public static bool ValidGuest(int id) { return id >= 0 && id < GuestCount; }
         public static string Prefab(int id) { if (!Valid(id)) throw new IOException("Unknown character."); return Prefabs[id]; }
         public static string Name(int id) { return Valid(id) ? Names[id] : "?"; }
+        public static string Identity(int id) { if (!Valid(id)) throw new IOException("Unknown character."); return Identities[id]; }
         public static int FromIdentity(string identity)
         {
             for (int i = 0; i < Identities.Length; i++) if (Identities[i] == identity) return i;

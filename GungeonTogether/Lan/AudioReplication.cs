@@ -46,6 +46,13 @@ namespace GungeonTogether.Lan
             return false;
         }
         private static uint Id(object value) { return value is uint ? (uint)value : AkSoundEngine.GetIDFromString((string)value); }
+        public void PlayHurt(PlayerController player, int character)
+        {
+            if (player == null) return;
+            replaying = true;
+            try { AkSoundEngine.SetSwitch("CHR_Player", CharacterCatalog.Identity(character), player.gameObject); AkSoundEngine.PostEvent("Play_CHR_general_hurt_01", player.gameObject); }
+            finally { replaying = false; }
+        }
         private Source GetSource(GameObject obj)
         {
             if (obj == null) return null;
@@ -67,6 +74,10 @@ namespace GungeonTogether.Lan
             Source source = GetSource(obj); if (source == null) return;
             Vector3 position = obj.transform.position;
             PlayerController guest = GameManager.Instance.SecondaryPlayer;
+            // The scene-effects damage counter guarantees the guest hurt cue
+            // alongside its native screen flash, even when short audio batches
+            // expire. Do not play the same cue twice through both paths.
+            if (guest != null && obj == guest.gameObject && Id(id) == AkSoundEngine.GetIDFromString("Play_CHR_general_hurt_01")) return;
             if (guest != null && Vector2.Distance(position.XY(), guest.CenterPosition) > 80) return;
             SoundCue cue = new SoundCue { Event = Id(id), Emitter = source.Id, X = position.x, Y = position.y };
             foreach (KeyValuePair<uint, uint> pair in source.Switches) cue.Switches.Add(new SoundSwitch { Group = pair.Key, Value = pair.Value });

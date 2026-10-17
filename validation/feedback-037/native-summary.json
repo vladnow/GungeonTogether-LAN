@@ -1,0 +1,139 @@
+{
+  "version": "0.3.7",
+  "date": "2026-10-18",
+  "runtime_sha256": "6b6a7302faaef3049e64b98af4333f19824f792128b2b5e65e9b08356e2a2066",
+  "cases": [
+    {
+      "case": "release-pilot-037",
+      "kind": "feedback",
+      "character": "Pilot",
+      "runtime_sha256": "6b6a7302faaef3049e64b98af4333f19824f792128b2b5e65e9b08356e2a2066",
+      "floor_layouts": [
+        "1:280c86232c55c8bb27f5541ca72ba403db9bb2e69ac3ed4814f5ef5660d19545",
+        "2:b368d65ac46cc636b487a3b37dca21149b05f1443919e8d2e40d613112276cd7"
+      ],
+      "host_assertions": 48,
+      "client_assertions": 17,
+      "desktop_safe": true,
+      "silent": true
+    },
+    {
+      "case": "release-hunter-037",
+      "kind": "feedback",
+      "character": "Hunter",
+      "runtime_sha256": "6b6a7302faaef3049e64b98af4333f19824f792128b2b5e65e9b08356e2a2066",
+      "floor_layouts": [
+        "1:44827efe4e9c431b0f5f72e078bfe2519321c3ab2582352b371bc733365bbfd5",
+        "2:0f3f2b360d016734e8e68f7a1ab5e50fb808aa324e1fd6ab3535aab7979a9814"
+      ],
+      "host_assertions": 48,
+      "client_assertions": 17,
+      "desktop_safe": true,
+      "silent": true
+    },
+    {
+      "case": "release-keyboard-037",
+      "kind": "response",
+      "character": "Pilot",
+      "runtime_sha256": "6b6a7302faaef3049e64b98af4333f19824f792128b2b5e65e9b08356e2a2066",
+      "floor_layouts": [
+        "1:7f5e51ce64d45aeb01e959cf5ceaeaa79f8955a852cbda8b9ea895c7cd019fb0",
+        "2:e35cedbe5102835740a92ab5ece8d181aacecd6d3fc13521056f7f1dd25a215f"
+      ],
+      "host_assertions": 7,
+      "client_assertions": 8,
+      "desktop_safe": true,
+      "silent": true
+    },
+    {
+      "case": "release-regression-037",
+      "kind": "regression",
+      "character": "Hunter",
+      "runtime_sha256": "6b6a7302faaef3049e64b98af4333f19824f792128b2b5e65e9b08356e2a2066",
+      "floor_layouts": [
+        "1:5b60f138b810bb803c2fa670b13aeb6d715940d953dd3308320eec23541e7770",
+        "2:0706ddde9e51ae8f1676972ad957b20ee25a9475c6ce72999413d9f4e5db93b5"
+      ],
+      "host_assertions": 14,
+      "client_assertions": 21,
+      "desktop_safe": true,
+      "silent": true
+    }
+  ],
+  "checks": {
+    "LAN": [
+      "LAN_TESTS_PASS: 34",
+      34
+    ],
+    "Dungeon": [
+      "DUNGEON_PROTOCOL_TESTS_PASS: 85",
+      85
+    ],
+    "Profile": [
+      "PROFILE_TESTS_PASS: 19",
+      19
+    ],
+    "Rendering": [
+      "RENDERING_TESTS_PASS: 38",
+      38
+    ],
+    "Display": [
+      "DISPLAY_PROFILE_TESTS_PASS: 9",
+      9
+    ],
+    "Acknowledgements": [
+      "ACKNOWLEDGEMENT_TESTS_PASS: 9",
+      9
+    ],
+    "SpriteVisibility": [
+      "SPRITE_VISIBILITY_TESTS_PASS: 20",
+      20
+    ],
+    "LatencyFresh": [
+      "TRANSPORT_LATENCY_PASS assertions=24",
+      24
+    ],
+    "Presentation": [
+      "PRESENTATION_TESTS_PASS: 30",
+      30
+    ],
+    "Responsiveness": [
+      "RESPONSIVENESS_TESTS_PASS: 34",
+      34
+    ],
+    "Inventory": [
+      "INVENTORY_TESTS_PASS: 31",
+      31
+    ],
+    "Effects": [
+      "EFFECTS_TESTS_PASS: 23",
+      23
+    ]
+  },
+  "native_binding_checks": 62,
+  "movement_comparison": {
+    "baseline_036": {
+      "median_ms": 30.365,
+      "p95_ms": 71.476,
+      "trials": 12
+    },
+    "current_037": {
+      "median_ms": 14.961,
+      "p95_ms": 41.424,
+      "trials": 12
+    },
+    "trials_each": 12,
+    "input": "Synthetic walk pulses with native WASD menu-navigation bits",
+    "metric": "Sample to >=0.0625 game units of presented displacement",
+    "not_physical_pcs_radmin": true,
+    "not_input_to_photon": true
+  },
+  "limitations": [
+    "No full campaign; Sell Creep mismatch unresolved",
+    "Exact reported dark halo requires remote comparison",
+    "Not every room-transition lock reproduced",
+    "No audible listening test",
+    "No fresh manager import or upload"
+  ],
+  "raw_private_data_distributed": false
+}

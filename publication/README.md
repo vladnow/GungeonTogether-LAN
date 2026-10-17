@@ -1,111 +1,60 @@
 # Gungeon Together LAN
 
+Experimental **two-player Enter the Gungeon co-op** over LAN or Radmin VPN. Connect with **Host / Join by IPv4**. The host runs native co-op; the guest controls player two and renders replicated state using local game resources. Each normal gameplay camera follows its own player. Native manual camera sequences may use cinematic framing.
 
-Experimental **two-player co-op for Enter the Gungeon** over LAN or Radmin VPN. Connect using **Host / Join by IPv4**. The host runs native co-op; the client controls a selected second character and renders replicated objects using its own game resources. During normal gameplay, each screen follows its own player: the host follows player one, and the client follows player two. Native manual camera sequences can temporarily use shared cinematic framing.
-
-**0.3.6 is an early-floor testing alpha. The known fourth-floor Sell Creep layout mismatch remains unresolved and can stop a run. Full campaign completion is not established.** This update synchronizes opened secret rooms and the guest's Ammonomicon equipment page. Fast guest movement, bounded visual prediction, graphical HUD and combat sound-event relay remain available. Some effects and interactions remain incomplete.
+**0.3.7 is an early-floor alpha. Full campaign completion is not established. The known fourth-floor Sell Creep layout mismatch can still stop a run.**
 
 ## Install or update
 
-- Both Windows PCs need matching game files and **the same 0.3.6 build**. Built against Steam Enter the Gungeon **2.1.9**.
-- Use **BepInExPack EtG 5.4.2101** / BepInEx 5 and a clean manager profile with one networking mod.
+- Both Windows PCs need matching game files and **the same 0.3.7 build**. Built against Steam Enter the Gungeon **2.1.9**.
+- Use **BepInExPack EtG 5.4.2101** / BepInEx 5 and a clean mod-manager profile containing one networking mod.
 - Install Radmin VPN separately when using a virtual LAN.
 
-When this version is published on Thunderstore, update the mod on both PCs and use **Start Modded**. For a prepared local package, install the loader in the profile, then import `GungeonTogether_LAN-0.3.6-Thunderstore.zip` through **Settings → Import local mod**. The local import may require installing the loader dependency separately.
+After publication, update on both PCs and use **Start Modded**. For the prepared local package, install the loader in the profile and import `GungeonTogether_LAN-0.3.7-Thunderstore.zip` using **Settings > Import local mod**. Local import may require installing the loader dependency separately.
 
-Remove older LAN DLLs and other GungeonTogether variants from that profile first. Keep backups outside `BepInEx/plugins`. Use separate profiles for LAN and other networking mods. This release contains a Thunderstore package and source; no updated launcher is provided.
-
-**0.3.6 cannot connect to 0.3.5 or earlier peers. Update both PCs.** Creating a package does not publish it. Source is available from [GitHub](https://github.com/vladnow/GungeonTogether-LAN); **Code → Download ZIP** downloads source, not an installable mod.
+Remove older LAN DLLs and other GungeonTogether variants from that profile. Store backups outside `BepInEx/plugins`. Separate profiles are recommended for this mod and other multiplayer mods. **0.3.7 cannot connect to 0.3.6 or earlier peers.** No launcher is included. Preparing a ZIP does not publish it.
 
 ## Connect and play
 
-1. Enter the foyer and choose a local character. **Esc** closes the LAN menu; **Ctrl+P** reopens it.
-2. Host: **HOST → CREATE ROOM**. Listen address `0.0.0.0` accepts connections on all adapters; a specific local LAN/Radmin address also works.
-3. Client: **JOIN**. Enter the host's IPv4, matching port and room code. Select Cultist, Pilot, Marine, Convict or Hunter under **PLAYER TWO**, then **JOIN BY IP**. The run character is separate from the client's foyer character.
-4. The host sees the choice and presses **START RUN**. The client loads automatically after the map check. Character selection remains available until the run starts.
+1. Start in the foyer and choose the host character. Press **Ctrl+P** for the LAN menu; **Esc** closes it.
+2. Host: select **HOST**, use listen address `0.0.0.0`, set the port and room code, then create the room.
+3. Guest: select **JOIN**, enter the host's LAN/Radmin IPv4, use the same port and room code, and choose player two's character.
+4. Once connected, the host starts the run from the LAN menu.
 
 Default port: **TCP 27631**. Allow the game through the firewall for the intended network. Use a trusted LAN/VPN; the mod does not add encryption.
 
-The guest uses normal movement, aim, fire, roll, reload, interact, blank, item and weapon-switch controls. The host controls pause, map and shared menus. Opening the LAN menu mutes guest input. Losing window focus during an active LAN run does not automatically pause the game; manual host pause remains available.
+Use normal movement, aiming, shooting, rolling, reloading, interaction, blanks, items and weapon switching. Shooting and interaction remain separate actions. Opening the LAN menu mutes guest input. The host controls shared pause/map and progression. The guest may view their synchronized native Ammonomicon equipment page locally. Dialogue choices run on the host and receive the interacting guest's menu actions.
 
-## Secret rooms and guest equipment in 0.3.6
+## Changes in 0.3.7
 
-Opened secret-room state now reaches the client separately from sprite transforms. The client removes its local secret ceiling, door meshes and blockers, updates secret-cell visibility/occlusion and reveals that room on its minimap. Closed rooms remain concealed until the host opens them. Applying the visual state does not invoke local room-entry gameplay events or award independent discovery statistics. The change covers native secret-room managers; arbitrary destructible terrain and every special puzzle are not established.
+- **Native guest HUD:** actual game controllers and artwork for hearts, armor, blanks, cash/keys, current gun/ammo, active item and status bars, using the original single-player layout. UI equipment copies remain inactive and do not enter player inventories.
+- **Movement response:** keep bounded visual walking prediction when WASD also activates native menu-navigation bindings. Reload and weapon cycling no longer disable it. Smooth small host corrections over 60 ms; preserve wall/pit clipping and resets at room changes/teleports.
+- **Doors:** an ordinary unlocked/unsealed door opens for one entering player, without forcing both players through the shared-screen entry sequence. Battle-room regrouping and special/locked doors retain native rules.
+- **Hazards:** relay nearby native goop cells and burn/electric/frozen flags, render native floor meshes and fire particles locally, and keep damage/spread decisions on the host.
+- **Dialogue:** recreate native textboxes and response buttons using actual host text.
+- **Damage feedback:** relay the native hurt sound event, screen vignette and player sprite material flashes/status tints.
+- **Lighting:** update both native placeholder positions/collider caches and room light state. The exact reported dark halo still needs comparison on the affected remote PC.
 
-The guest's Ammonomicon equipment page now reads the host's complete player-two gun, active-item, passive-item and active-synergy lists. Native page icons stay visible instead of being hidden with world simulation sprites. The page identifies the selected guest character. Reading the page does not grant pickups, alter client placeholder inventories or run item/stat callbacks. Movement input and speculative walking are muted while the guest's book is open. This is equipment-page synchronization, not a complete synchronization of collection unlocks, the final death book, all menus or the full map.
+LAN menu **DETAILS** shows RTT, input acknowledgement time, queue size and player-two native input state. RTT and acknowledgement time are diagnostics; they are not measurements of input-to-display latency.
 
-## Shared resources and revival
+## Shared resources, secrets and equipment
 
-Coins and ordinary keys use **one shared native budget** on the host. Either player can collect or spend them; the guest HUD displays that same budget. The mod retains the native shared-consumables object and rebinds the guest to it if needed. Do not add the two displayed balances together. Health, guns, ammo, active/passive equipment and blanks remain per-player resources.
+Coins and ordinary keys use **one shared native budget**. Either player collects or spends from it; the two displayed balances must not be added together. Health, weapons, ammo, equipment and blanks remain per-player.
 
-A dead player can remain a ghost when changing floors. Loading a floor is not itself a guaranteed resurrection. Native co-op revival comes through a revival chest or the boss-reward resurrection path. If a player dies after the boss reward, a later descent can therefore retain the ghost. Remaining dead after a qualifying boss reward is a different issue; the screenshot of a floor entrance alone cannot establish which occurred. This update does not add automatic revival on every floor transition. Tests checked forced ghost-state persistence and the native boss-reward resurrection function, not a complete natural death/boss/chest run.
+Opened native secret-room geometry/visibility and the guest's gun, active-item, passive-item and synergy lists are synchronized. The guest's native Ammonomicon equipment page uses read-only presentation data. Collection unlock history and every death-book field are not synchronized.
 
-## Guest HUD and sound retained from 0.3.4
+Changing floors does **not** guarantee revival. Native boss-reward/chest revival rules remain in use; no automatic revival on every floor is added.
 
-The guest's text status box is replaced by a graphical HUD: full/half/empty hearts, armor, blanks, cash, keys, the equipped gun and ammo/magazine counts, reload state, and active item with its charge bar. These values come from the host's player two. Icons are read from the local game; no game assets are included in the mod. This is a custom presentation HUD, not a full replica of every native inventory/menu screen.
+## Testing limits
 
-Combat sound events (weapons, enemies, objects, character/footstep and voice categories) now travel from the host to the guest, with emitter positions and per-emitter Wwise switches such as weapon type. Playback uses the guest's own game sound banks and volume settings. Local duplicate combat events are suppressed while mirroring. Queues and emitters are bounded; events from an older floor and stale batches are discarded. Music/ambience, RTPC parameters, every looping-sound stop/callback and every modded sound bank are not fully synchronized. The tests keep audio output disabled, so audible balance and completeness still need listening on two PCs.
+This remains an alpha for early-floor testing. The fourth-floor Sell Creep layout mismatch is unresolved. Full natural campaign completion, all special rooms/NPCs/bosses, arbitrary destructible tilemaps, dynamic/modded goop definitions, general particle/gas-cloud replication, complete inventory foldouts/dual-wield HUDs and every item-specific meter are not established. Unknown required assets can stop the session with a visible error to avoid invisible hazards.
 
-## Separate cameras retained from 0.3.3
+The ordinary-door restriction was identified and removed. This does not establish that every reported movement lock has that same cause. The native HUD uses the current equipped gun/item; special modifier-driven layouts need further coverage.
 
-The host camera uses player one's focus instead of averaging both characters. The client receives a separate view around player two. Native room framing can keep the host away from the room edge; manual boss/cinematic camera sequences retain their explicit framing.
+Local native-process checks are separate from physical two-PC/Radmin play. Automated audio tests disable output and do not establish audible quality. A fresh manager import and remote publication require their own checks. See the versioned validation/release notes beside the prepared archives, or the repository's [validation report](https://github.com/vladnow/GungeonTogether-LAN/blob/main/publication/VALIDATION.md).
 
-Network sprite selection uses the guest view and the guest's reported viewport aspect, rather than the host's screen. Objects around the guest can therefore be transmitted even when they are outside the host view. Deferred native off-screen animation frames are included so their animations continue on the client.
+## Source and attribution
 
-The native shared-screen movement restriction is bypassed during the active LAN run. Wall/pit collision rules remain. This does not make the run two independent campaigns: room sealing, automatic regrouping for combat, floor transitions and other native co-op rules remain shared. Death/ghost/spectator behavior and every cinematic are not fully validated.
+[Source repository](https://github.com/vladnow/GungeonTogether-LAN). **Code > Download ZIP** downloads source, not an installable mod. Build and test scripts are developer tools; players launch through the mod manager.
 
-## Enemy asset fix retained from 0.3.2
-
-Some enemy sprite collections are embedded inside enemy prefabs and cannot be loaded independently by their tk2d GUID. In 0.3.1, encountering Blobulin/Blobuloid/Blobulon could stop the client and then pause the host with `Missing or incompatible local sprite asset`.
-
-The host now includes the native owning enemy's database GUID with the sprite definition. If the collection is absent locally, the client loads that prefab's dependencies from its own game files and verifies the collection GUID and ordered sprite-table fingerprint. It does not create a second simulated enemy or receive textures over the network. This also supports other enemy collections with an identifiable native owner; it is not proof that every asset in the game is covered.
-
-The missing-asset and layout checks remain active. A real mismatch still stops the session instead of leaving invisible hazards. The exact old failure was reproduced before the fix. See `VALIDATION.md` for the current runtime hash and bounded native tests.
-
-## Latency
-
-The host sends a compact, **75-byte player-motion payload up to 60 times per second**, separately from full world snapshots at up to **30 Hz**. Capture runs after native physics, and input acknowledgements refer to input consumed by the native player controller. Guest input also runs at up to 60 Hz with a scheduler that preserves its cadence through ordinary frame jitter. Actual rates depend on frame rate and load.
-
-Normal guest walking uses bounded visual prediction of unacknowledged inputs. The body, hands, gun and attached outlines move together, and the guest camera follows that presented position. Prediction is limited to **100 ms / 0.65 game units**, stops on stale motion, and checks local walls, pits, room bounds and blocking bodies. Host pause, input overrides, rolls, room changes and teleports reset or disable it. Damage, pickups and gameplay outcomes remain authoritative on the host. This is visual anticipation, not complete client physics or rollback; corrections can still be visible.
-
-The other world objects use adaptive interpolation: **40 ms initially, bounded to 35–90 ms** according to arrival jitter. The menu reports the current smoothing delay. To disable speculative walking, close the game and set `ClientMovementPrediction = false` under `[Network]` in the profile's `BepInEx/config/com.gungeontogether.lan.cfg`, then restart. The fast authoritative player stream remains active.
-
-The menu's RTT measures the mod's round trip; its response figure measures an input acknowledgement and excludes display presentation. Neither is a Radmin ping. Local native movement measurements are documented in `VALIDATION.md`; they do not establish latency between two physical PCs. TCP retransmissions, low FPS, loading and congestion can still add delay. UDP and world delta compression are not implemented. Raising the world update rate can increase total traffic.
-
-Historical constrained-network measurements belong to 0.3.1 and are retained in `publication/VALIDATION-0.3.1.md` and [the transport evidence](https://github.com/vladnow/GungeonTogether-LAN/blob/main/validation/latency-031/README.md).
-
-## Saves
-
-LAN progress is separate from normal progress:
-
-`<game folder>/BepInEx/GungeonTogetherLAN/dungeon-profile`
-
-Normal unlocks and currency are not imported. Initial options/display preferences may be inherited once, with a backup for migrated LAN display fields. Later LAN display choices are preserved.
-
-Manager profiles sharing a game folder also share this LAN save directory. With default settings, direct Steam launches use normal saves and disable LAN. Back up both save directories before changing installations.
-
-The client temporarily imports the host's generation state. Normal disconnect restores its previous in-memory context; crash recovery is not guaranteed. Advanced setting: **Profile / SaveProfileMode** in `com.gungeontogether.lan.cfg`: `Auto`, `Normal` (LAN disabled), or `LAN`. Restart after changing it. Manual launches can use `--gt-lan-profile`.
-
-## Limits
-
-- **Fourth-floor Sell Creep map mismatch remains unresolved.** Geometry checks stop mismatched runs.
-- A complete natural campaign, all bosses/items/abilities, normal boss/elevator progression, endings, long runs and modpacks remain unverified.
-- Guest sound/HUD coverage has the limits above. Some materials/effects, beams, arbitrary destructible tilemap changes and shop/dialogue UI remain incomplete. Client price text is absent. The shop stock/highlight checks recorded for 0.3.1 do not establish complete shopping support.
-- A disconnected run pauses. Return to the foyer and create a new session; active-run reconnection and host migration are not implemented.
-- Native player/foyer startup warnings have been observed. This release does not claim that all freezes or startup errors are resolved.
-
-Native checks use two local game processes, not two physical PCs over Radmin. Read `VALIDATION.md` for the actual scenarios and their limits.
-
-## If the game stops
-
-Before returning to the foyer, capture the full status text below the main button and open **DETAILS**. An automatically opened LAN menu can indicate a stopped session, not a normal pause. Closing the menu alone does not recover a faulted run.
-
-Keep **both players'** `BepInEx/LogOutput.log` files before launching again. For Thunderstore Mod Manager, open the profile folder from the manager; the log is in its `BepInEx` directory. Include versions, host PC, selected heroes, last action and RTT/response figures in a [GitHub issue](https://github.com/vladnow/GungeonTogether-LAN/issues). Remove personal identifiers before publishing logs.
-
-## Source and license
-
-Based on [GungeonTogether by lam and contributors](https://github.com/llamerrr/GungeonTogether), upstream commit `52be4b636a07f28483ae4e17b16ad471065e89ce`. **Copyright (c) 2025 lam.** The original MIT notice is preserved; LAN changes use the same license. This is an unofficial derivative.
-
-Prepared releases use a separate `release/<version>/` folder containing the packages, checksums and standalone release notes. `Build-Thunderstore.ps1` creates this layout and refuses existing version files.
-
-Build with a .NET SDK and your local game/BepInEx libraries using `Build-LAN.ps1` with `GamePath` and `BepInExCorePath`. Game resources, game assemblies and BepInEx binaries are excluded from distribution. Developed with AI assistance.
+Derived from [llamerrr/GungeonTogether](https://github.com/llamerrr/GungeonTogether). Preserve the inherited MIT license and original copyright notice. Game resources are loaded from the installed game; game libraries, textures and audio banks are not distributed in this package. See LICENSE and NOTICE.md.
