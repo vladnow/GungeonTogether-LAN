@@ -4,7 +4,7 @@ using System.IO;
 
 namespace GungeonTogether.Lan
 {
-    public enum DungeonMessage : byte { Input = 2, Level = 3, Ready = 4, Snapshot = 5, Collection = 6, Stop = 7, Character = 8, Audio = 9, Motion = 10 }
+    public enum DungeonMessage : byte { Input = 2, Level = 3, Ready = 4, Snapshot = 5, Collection = 6, Stop = 7, Character = 8, Audio = 9, Motion = 10, Equipment = 11, Secrets = 12 }
 
     public sealed class RemoteInput
     {

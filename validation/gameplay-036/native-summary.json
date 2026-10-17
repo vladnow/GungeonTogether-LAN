@@ -1,0 +1,99 @@
+{
+  "version": "0.3.6",
+  "date": "2026-10-16",
+  "runtime_sha256": "e741dcb4b8ba6c27edc75068e58009bb9ee7d1a920462242a911a6fb18c45f98",
+  "cases": [
+    {
+      "guest": "Hunter",
+      "suite": "gameplay",
+      "runtime_sha256": "e741dcb4b8ba6c27edc75068e58009bb9ee7d1a920462242a911a6fb18c45f98",
+      "layout_barriers": [
+        "1:5d017a567c32b15d879acd9cc8b0970ab00de6d7345f6d17429e14b73cdca09f",
+        "2:10c68479967554bcdb00c76f03fff24f6037213354cc141b1091652fc15defca"
+      ],
+      "remote_native_move_fire_damage_and_forced_tt5": true,
+      "desktop_safe_processes": 2,
+      "audio_output_disabled": true,
+      "intentional_disconnect_after_pass": true,
+      "first_floor_secret_initially_closed": true,
+      "host_open_native_client_cover_doors_blockers_removed": true,
+      "no_duplicate_client_discovery_statistics": true,
+      "ghost_persists_after_floor_load": true,
+      "native_boss_reward_resurrection_function_verified": true,
+      "full_natural_death_and_boss_kill_tested": false,
+      "native_consumables_reference_shared": true,
+      "native_coin_and_key_pickups_shared": true,
+      "shared_budget_spending_and_guest_HUD_verified": true,
+      "shared_currency_after_fixture": 6,
+      "shared_keys_after_fixture": 1,
+      "acquired_gun": 15,
+      "acquired_active_item": 108,
+      "acquired_passive_item": 102,
+      "actual_native_equipment_icons_verified": true,
+      "native_equipment_icon_renderers_visible": 6,
+      "client_placeholder_inventories_unchanged": true,
+      "secret_png_sha256": "da7259b67fff6602f079865f590813c6ca0f67f4705b1bab3704e75d2f8943be",
+      "book_png_sha256": "7c85d20c6257a855149d607c7cc321eb8dfdf4c75906b9a49a22dacba6644757"
+    },
+    {
+      "guest": "Pilot",
+      "suite": "gameplay",
+      "runtime_sha256": "e741dcb4b8ba6c27edc75068e58009bb9ee7d1a920462242a911a6fb18c45f98",
+      "layout_barriers": [
+        "1:5d017a567c32b15d879acd9cc8b0970ab00de6d7345f6d17429e14b73cdca09f",
+        "2:10c68479967554bcdb00c76f03fff24f6037213354cc141b1091652fc15defca"
+      ],
+      "remote_native_move_fire_damage_and_forced_tt5": true,
+      "desktop_safe_processes": 2,
+      "audio_output_disabled": true,
+      "intentional_disconnect_after_pass": true,
+      "first_floor_secret_initially_closed": true,
+      "host_open_native_client_cover_doors_blockers_removed": true,
+      "no_duplicate_client_discovery_statistics": true,
+      "ghost_persists_after_floor_load": true,
+      "native_boss_reward_resurrection_function_verified": true,
+      "full_natural_death_and_boss_kill_tested": false,
+      "native_consumables_reference_shared": true,
+      "native_coin_and_key_pickups_shared": true,
+      "shared_budget_spending_and_guest_HUD_verified": true,
+      "shared_currency_after_fixture": 6,
+      "shared_keys_after_fixture": 1,
+      "acquired_gun": 15,
+      "acquired_active_item": 108,
+      "acquired_passive_item": 102,
+      "actual_native_equipment_icons_verified": true,
+      "native_equipment_icon_renderers_visible": 7,
+      "client_placeholder_inventories_unchanged": true,
+      "secret_png_sha256": "293a6fd0d50add44d11f6f4900a4c74c93fc9b215fcccd7674b485d7b7552de9",
+      "book_png_sha256": "98aa1f7245255dcbdd1681b7ad29a77f1779481cb21ef70cfe043e4c120fd56f"
+    },
+    {
+      "guest": "Pilot",
+      "suite": "response",
+      "runtime_sha256": "e741dcb4b8ba6c27edc75068e58009bb9ee7d1a920462242a911a6fb18c45f98",
+      "layout_barriers": [
+        "1:5d017a567c32b15d879acd9cc8b0970ab00de6d7345f6d17429e14b73cdca09f",
+        "2:10c68479967554bcdb00c76f03fff24f6037213354cc141b1091652fc15defca"
+      ],
+      "remote_native_move_fire_damage_and_forced_tt5": true,
+      "desktop_safe_processes": 2,
+      "audio_output_disabled": true,
+      "intentional_disconnect_after_pass": true,
+      "measurement": {
+        "median_ms": 10.609,
+        "p95_ms": 25.005,
+        "trials": 12
+      },
+      "predicted_visible_frames": 322.0,
+      "owned_guest_sprites": 7.0,
+      "native_wall_pit_pause_override_roll_teleport_guard_checks": true,
+      "capture_mean_ms": 1.756,
+      "capture_max_ms": 19.116
+    }
+  ],
+  "network": "Two local native game processes over loopback, not physical two-PC/Radmin.",
+  "measurement": "Synthetic input sample to >=0.0625 game units of presented displacement; not input-to-photon or damage latency.",
+  "ghost_fixture": "Force native health to zero and invoke native BecomeGhost before transition. No full natural lethal-damage animation/drop/boss/chest cycle.",
+  "native_book_diagnostic": "Private probe advances the internal focus flag without foreground activation and bypasses queued unlock cards to inspect the actual equipment page. Production behavior is unchanged.",
+  "raw_private_data_distributed": false
+}

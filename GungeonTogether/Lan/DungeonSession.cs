@@ -25,6 +25,10 @@ namespace GungeonTogether.Lan
         public double SmoothingMilliseconds { get { return sprites.SmoothingMilliseconds; } }
         private bool loadingCommand;
         private readonly InputAcknowledgements inputAcks = new InputAcknowledgements();
+        private readonly WorldPresentation presentation = new WorldPresentation();
+        public InventoryState Equipment { get; private set; }
+        internal InventoryBook Book { get; private set; }
+        public int RevealedSecretRooms { get { return presentation.AppliedSecretRooms; } }
         private float nextNetworkLog;
         public double InputLatencyMs { get { return inputAcks.Milliseconds; } }
         private int hostCharacter = 1;
@@ -77,6 +81,7 @@ namespace GungeonTogether.Lan
 
         private void SetGenerating()
         {
+            presentation.Reset(); Equipment = null; Book = null;
             Audio.Dispose(); Audio = new AudioReplication();
             Phase = RunPhase.Generating; deadline = Time.realtimeSinceStartup + 120;
             transport.InactivityTimeout = 120; inputAcks.Clear();
@@ -138,7 +143,7 @@ namespace GungeonTogether.Lan
         public void LateUpdate()
         {
             if (!Mirroring || GameManager.Instance.IsLoadingLevel) return;
-            try { sprites.PredictionEnabled = EnableMovementPrediction && !MuteClientInput; sprites.Render(Time.realtimeSinceStartup); }
+            try { sprites.PredictionEnabled = EnableMovementPrediction && !MuteClientInput && !InventoryBook.BookOpen; sprites.Render(Time.realtimeSinceStartup); }
             catch (Exception ex) { Fail(ex.Message); }
         }
 
@@ -158,6 +163,7 @@ namespace GungeonTogether.Lan
                     value.InputSequence = controls.SimulatedInputSequence;
                     transport.SendLatest(value.Encode());
                 }
+                presentation.Capture(epoch, GuestCharacter, now, transport.SendLatest);
                 transport.FlushPending();
             } catch (Exception ex) { Fail(ex.Message); }
         }
@@ -168,7 +174,7 @@ namespace GungeonTogether.Lan
             Camera viewCamera = GameManager.Instance.MainCameraController.Camera;
             if (viewCamera != null) input.ViewAspect = Mathf.Clamp(viewCamera.aspect, RemoteInput.MinViewAspect, RemoteInput.MaxViewAspect);
             if (SmokeControls) { input.MoveX = SmokeMoveX; input.AimX = 1; input.Buttons = SmokeShoot ? 1UL << 8 : 0; return input; }
-            if (MuteClientInput || !Application.isFocused) return input;
+            if (MuteClientInput || InventoryBook.BookOpen || !Application.isFocused) return input;
             BraveInput brave = BraveInput.GetInstanceForPlayer(0);
             if (brave == null || brave.ActiveActions == null) return input;
             GungeonActions a = brave.ActiveActions;
@@ -242,6 +248,17 @@ namespace GungeonTogether.Lan
                 if (type == DungeonMessage.Level) BeginClientLevel(LevelCommand.Decode(bytes));
                 else if (type == DungeonMessage.Collection) { CollectionInfo info = CollectionInfo.Decode(bytes); if (info.Epoch == epoch) sprites.Define(info); }
                 else if (type == DungeonMessage.Audio) { SoundBatch batch = SoundBatch.Decode(bytes); if (Mirroring) Audio.Receive(batch, epoch, Snapshot); }
+                else if (type == DungeonMessage.Equipment) {
+                    InventoryState state = InventoryState.Decode(bytes);
+                    if (Mirroring && state.Epoch == epoch) {
+                        if (state.Character != GuestCharacter) throw new IOException("Guest inventory character differs.");
+                        Book = new InventoryBook(state); Equipment = state;
+                    }
+                }
+                else if (type == DungeonMessage.Secrets) {
+                    SecretRoomsState state = SecretRoomsState.Decode(bytes);
+                    if (Mirroring && state.Epoch == epoch) presentation.Apply(state);
+                }
                 else if (type == DungeonMessage.Motion) {
                     PlayerMotion motion = PlayerMotion.Decode(bytes);
                     if (motion.Epoch == epoch && Mirroring && sprites.EnqueueMotion(motion)) inputAcks.Observe(motion.InputSequence, Time.realtimeSinceStartup);
@@ -295,6 +312,7 @@ namespace GungeonTogether.Lan
 
         public void Dispose()
         {
+            presentation.Reset(); Equipment = null; Book = null;
             if (controls != null) { controls.Dispose(); controls = null; }
             sprites.Dispose();
             Audio.Dispose();

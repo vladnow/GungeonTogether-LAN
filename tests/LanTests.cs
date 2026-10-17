@@ -41,7 +41,7 @@ internal static class LanTests
             writer.Write(magic); writer.Write(protocol); writer.Write(host); writer.Write(game); writer.Write(code); return Frame(ms.ToArray());
         }
     }
-    private static readonly string Magic = "GungeonTogether-LAN-dungeon-0.3.5";
+    private static readonly string Magic = "GungeonTogether-LAN-dungeon-0.3.6";
     private static void Reject(string game, string code, string magic, int protocol, bool role, string expected, string name)
     {
         using (LanTransport host = new LanTransport()) {
@@ -124,6 +124,7 @@ internal static class LanTests
             Reject(Fingerprint, "abcdef", "GungeonTogether-LAN-dungeon-0.3.2", 1, false, "version/role mismatch", "previous 0.3.2 peer rejected before guest-viewport wire payloads");
             Reject(Fingerprint, "abcdef", "GungeonTogether-LAN-dungeon-0.3.3", 1, false, "version/role mismatch", "previous 0.3.3 peer rejected before audio and equipment HUD payloads");
             Reject(Fingerprint, "abcdef", "GungeonTogether-LAN-dungeon-0.3.4", 1, false, "version/role mismatch", "previous 0.3.4 peer rejected before motion packets and ownership flags");
+            Reject(Fingerprint, "abcdef", "GungeonTogether-LAN-dungeon-0.3.5", 1, false, "version/role mismatch", "previous 0.3.5 peer rejected before inventory and secret-room state");
             Reject(Fingerprint, "abcdef", Magic, 2, false, "version/role mismatch", "protocol mismatch rejected");
             Reject(Fingerprint, "abcdef", Magic, 1, true, "version/role mismatch", "host-to-host rejected");
             using (LanTransport host = new LanTransport()) {

@@ -18,7 +18,7 @@ namespace GungeonTogether.Lan
         private readonly Dictionary<int, Material> proxyMaterials = new Dictionary<int, Material>();
         private readonly List<tk2dBaseSprite> nativeSprites = new List<tk2dBaseSprite>();
         private readonly HashSet<tk2dBaseSprite> knownSprites = new HashSet<tk2dBaseSprite>();
-        private readonly VisibilityOverrides<Renderer> hidden = new VisibilityOverrides<Renderer>(delegate(Renderer r) { return r != null; }, delegate(Renderer r) { return r.enabled; }, delegate(Renderer r, bool value) { r.enabled = value; });
+        private readonly VisibilityOverrides<Renderer> hidden = new VisibilityOverrides<Renderer>(delegate(Renderer r) { return r != null; }, delegate(Renderer r) { return r.enabled; }, delegate(Renderer r, bool value) { if (!IsUserInterface(r)) r.enabled = value; });
         private readonly VisibilityOverrides<Behaviour> disabled = new VisibilityOverrides<Behaviour>(delegate(Behaviour b) { return b != null; }, delegate(Behaviour b) { return b.enabled; }, delegate(Behaviour b, bool value) { b.enabled = value; });
         private readonly Dictionary<HealthHaver, bool> protectedHealth = new Dictionary<HealthHaver, bool>();
         private PlayerController[] localPlayers = new PlayerController[0];
@@ -57,9 +57,12 @@ namespace GungeonTogether.Lan
 
         public void Define(CollectionInfo info) { definitions[info.Id] = info; descriptors[info.Id] = SpriteCollectionDescriptor.Parse(info.Name); }
 
+        private static bool IsUserInterface(Component component)
+        { return component != null && (component.GetComponentInParent<dfGUIManager>() != null || component.GetComponentInParent<AmmonomiconPageRenderer>() != null); }
+
         internal void Observe(tk2dBaseSprite sprite)
         {
-            if (disposed || sprite == null || sprite.GetComponent<NetworkSpriteProxy>() != null || !knownSprites.Add(sprite)) return;
+            if (disposed || sprite == null || IsUserInterface(sprite) || sprite.GetComponent<NetworkSpriteProxy>() != null || !knownSprites.Add(sprite)) return;
             nativeSprites.Add(sprite);
             if (suppressing) hidden.Track(sprite.GetComponent<Renderer>());
         }
@@ -140,7 +143,7 @@ namespace GungeonTogether.Lan
             Plane[] view = PlayerCamera.GuestFrustum(camera, cam, guestAspect);
             for (int spriteIndex = 0; spriteIndex < nativeSprites.Count; spriteIndex++) {
                 tk2dBaseSprite sprite = nativeSprites[spriteIndex];
-                if (sprite == null || !sprite.gameObject.activeInHierarchy) continue;
+                if (sprite == null || IsUserInterface(sprite) || !sprite.gameObject.activeInHierarchy) continue;
                 Renderer renderer = sprite.GetComponent<Renderer>();
                 if (renderer == null || !renderer.enabled) continue;
                 // Native getters flush the animator's deferred invisible frame.
