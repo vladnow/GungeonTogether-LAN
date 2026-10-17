@@ -8,7 +8,7 @@ using GungeonTogether.Networking;
 
 namespace GungeonTogether.Lan
 {
-    [BepInPlugin("com.gungeontogether.lan", "Gungeon Together LAN Alpha", "0.3.5")]
+    [BepInPlugin("com.gungeontogether.lan", "Gungeon Together LAN Alpha", "0.3.6")]
     [BepInIncompatibility("com.llamerrr.gungeontogether")]
     public sealed partial class DungeonPlugin : BaseUnityPlugin
     {
@@ -81,7 +81,7 @@ namespace GungeonTogether.Lan
             if (smokeRole != null) {
                 Foyer.DoIntroSequence = false; Foyer.DoMainMenu = false; visible = false; smokeDeadline = Time.realtimeSinceStartup + 150;
             }
-            harmony = new Harmony("com.gungeontogether.lan.dungeon-0.3.5");
+            harmony = new Harmony("com.gungeontogether.lan.dungeon-0.3.6");
             try { harmony.PatchAll(typeof(DungeonPlugin).Assembly); }
             catch (Exception ex) {
                 if (IsSmoke) { Log("GT_DUNGEON_SMOKE_FAIL: patch initialization: " + ex); Application.Quit(); }
@@ -108,7 +108,7 @@ namespace GungeonTogether.Lan
             transport.PacketReceived += Receive;
             transport.ConnectedEvent += delegate { ClearAvatar(); foyerSequence = 0; if (Session != null) Session.Dispose(); Session = new DungeonSession(transport, gameObject, Log); Session.EnableMovementPrediction = clientMovementPrediction; if (!transport.IsHost) Session.ChooseGuest(guestChoice); Log("GT_DUNGEON_CONNECTED"); };
             transport.DisconnectedEvent += delegate { ClearAvatar(); if (Session != null) Session.Disconnected(); Log(transport.Status); };
-            Log("GT_DUNGEON_READY 0.3.5; buffered rendering, character selection; game=" + fingerprint);
+            Log("GT_DUNGEON_READY 0.3.6; buffered rendering, character selection; game=" + fingerprint);
             Log("GT_PROFILE_MODE " + (UsesSeparateProfile ? "LAN" : "NORMAL"));
             RuntimeDisplayRestore.Attach(gameObject, Log);
         }

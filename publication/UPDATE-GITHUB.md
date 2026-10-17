@@ -4,8 +4,8 @@ Use the source archive for repository files and the Thunderstore archive for an 
 
 1. Back up the existing repository with Code > Download ZIP.
 2. Extract the prepared source ZIP into an empty directory. README.md and GungeonTogether/ must be at its top level.
-3. Open the repository's default branch and use Add file > Upload files. Upload the contents of that extracted directory, not its outer containing folder.
-4. Commit to a new branch and open a pull request. Check the diff and merge it when ready.
+3. Open the repository's default branch and use Add file > Upload files. Upload the top-level files and GungeonTogether/ first, not the outer containing folder.
+4. Commit to a new update branch and open a pull request. For larger source archives, switch to that same update branch and upload the remaining publication/, tests/, validation/ and other included folders in another batch. Commit directly to the update branch; its existing pull request updates automatically. Do not create a separate branch for each batch. Check the complete diff before merging.
 5. Remove obsolete tracked files separately. Browser uploads do not delete files missing from the new ZIP, and .gitignore does not remove files already tracked by Git.
 
 If present from older uploads, delete these exact obsolete paths from the repository:

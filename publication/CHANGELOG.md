@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.6
+
+- Synchronize opened native secret-room ceilings, door meshes/blockers, visibility and minimap reveal. Keep closed secrets concealed and apply presentation without client room-entry gameplay or duplicate discovery statistics.
+- Send the guest's complete gun, active-item, passive-item and active-synergy inventory when it changes. Use read-only native equipment-page readers and show the selected guest character.
+- Keep Ammonomicon item sprites visible instead of hiding them with simulated world actors. Mute guest movement/prediction while its book is open. Do not grant items or mutate the mirror's placeholder inventories to populate the book.
+- Preserve and enforce the native shared coin/key budget. Either player collects/spends from the same consumables object; blanks and equipment remain per-player.
+- Retain native ghost persistence and resurrection rules. No automatic revival on every floor change is added.
+- Require 0.3.6 on both peers. Retain 0.3.5 movement response changes and earlier guest HUD/audio/camera fixes. Full campaign and fourth-floor Sell Creep mismatch limits remain.
+
 ## 0.3.5
 
 - Send compact player motion separately at up to 60 Hz and full world snapshots at up to 30 Hz. Capture after native physics and acknowledge input consumed by the native player controller.
