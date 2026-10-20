@@ -1,0 +1,3 @@
+# 0.3.9 controlled campaign checks
+
+The sanitized summary records the exact runtime, five matching main-floor layout hashes per peer and fresh client checkpoint acknowledgements. Native warps, invulnerability, accelerated boss damage and direct/native-elevator transitions are artificial diagnostics, not full natural gameplay. The 0.3.8 fourth-floor Sell Creep mismatch was reproduced before the fix; both mastery-gate outcomes were checked after it. Native intro completion and post-load input release are checked separately. Raw diagnostic plugins, game decompiles, screenshots, logs and personal paths stay private. No remote publication or physical-PC/Radmin test is claimed.

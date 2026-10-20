@@ -1,0 +1,130 @@
+{
+  "version": "0.3.9",
+  "runtime_sha256": "3963e65f3dff187e28b480756339265df90827abde2f5d16721ca67878c1d063",
+  "ready_for_alpha_review": true,
+  "development_preview": false,
+  "automated_checks": 375,
+  "checks": {
+    "LAN": 34,
+    "Dungeon": 85,
+    "Profile": 19,
+    "Rendering": 38,
+    "Display": 9,
+    "Acknowledgements": 9,
+    "SpriteVisibility": 20,
+    "Presentation": 30,
+    "Responsiveness": 37,
+    "Inventory": 31,
+    "Effects": 39,
+    "LatencyFresh": 24
+  },
+  "native_managed_binding_checks": 66,
+  "dungeon_smoke_passes": 4,
+  "campaign_scenarios": [
+    {
+      "case": "final039-mastery0",
+      "guest_character_id": 4,
+      "layouts": [
+        {
+          "epoch": 1,
+          "sha256": "855b0db3823c58f7b1fb848e874448c715e8bd103df60dacae83166b4ad1e104"
+        },
+        {
+          "epoch": 2,
+          "sha256": "63eb44a637bd8fb185f5cc70a8ff0104521c8348be5acbe2c16f5233077750e4"
+        },
+        {
+          "epoch": 3,
+          "sha256": "d7cc02350cf452f3ba1a2c2bb50a742443f8f617d14927e6929d9541ad1c7cf9"
+        },
+        {
+          "epoch": 4,
+          "sha256": "a9f94ee3ae11d089b789dcd2df6e7a5a607b623989c78b138ab2f750cc55747c"
+        },
+        {
+          "epoch": 5,
+          "sha256": "e5da639e37c68e07c1c8f4d4596d59172a073fd35679a8895b5a01719f86b4ec"
+        }
+      ],
+      "peers": {
+        "host": {
+          "checkpoint_passes": 5,
+          "silent_windowed_desktop_safe": true
+        },
+        "client": {
+          "checkpoint_passes": 5,
+          "silent_windowed_desktop_safe": true
+        }
+      },
+      "forge_boss_observed": false,
+      "native_controls_released_checks": 4,
+      "bosses_cleared_with_artificial_damage": [],
+      "artificial": true,
+      "natural_campaign": false
+    },
+    {
+      "case": "final039-mainboss-f",
+      "guest_character_id": 2,
+      "layouts": [
+        {
+          "epoch": 1,
+          "sha256": "963e95f3a1b37a48c1b56b09fe0cf1957ba2fed4af618ccaf4bd8c475ab60d14"
+        },
+        {
+          "epoch": 2,
+          "sha256": "279dd8916da5f7bc9384c14fc4b3fbdd78a0e1694be666ec2ac3450370df1604"
+        },
+        {
+          "epoch": 3,
+          "sha256": "35888b0ab6bbb23df710de80a29ee0f1d045ffe612122e50bd0d273489bd958e"
+        },
+        {
+          "epoch": 4,
+          "sha256": "65c98fd2eb383e51b4aea742615ddc9401a775ca864293fdd4810c0cdd9c1a23"
+        },
+        {
+          "epoch": 5,
+          "sha256": "6016d19549c0eae4cbd5469b3de761d805a7c1a7c46dae43ff5224295c35d412"
+        }
+      ],
+      "peers": {
+        "host": {
+          "checkpoint_passes": 25,
+          "silent_windowed_desktop_safe": true
+        },
+        "client": {
+          "checkpoint_passes": 25,
+          "silent_windowed_desktop_safe": true
+        }
+      },
+      "forge_boss_observed": true,
+      "native_controls_released_checks": 4,
+      "bosses_cleared_with_artificial_damage": [
+        {
+          "room": "BashelliskRoom01",
+          "calls": 1
+        },
+        {
+          "room": "TankTreaderRoom",
+          "calls": 2
+        },
+        {
+          "room": "DemonWallRoom01",
+          "calls": 1
+        }
+      ],
+      "artificial": true,
+      "natural_campaign": false
+    }
+  ],
+  "all_five_main_floors_reached": true,
+  "sell_creep_mismatch_reproduced_on_038": true,
+  "mastery_gate_false_and_true_verified": true,
+  "prior_release_files_unchanged": 563,
+  "normal_save_profile_files_unchanged": 8,
+  "full_natural_campaign_completed": false,
+  "physical_two_pc_radmin_tested": false,
+  "audible_output_tested": false,
+  "fresh_manager_import_tested": false,
+  "remote_upload_performed": false
+}

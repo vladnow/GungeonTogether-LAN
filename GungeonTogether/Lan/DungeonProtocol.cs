@@ -55,17 +55,28 @@ namespace GungeonTogether.Lan
         }
     }
 
+    public sealed class MaterialParameter
+    {
+        public string Name = ""; public bool Vector; public float X, Y, Z, W;
+        public static readonly string[] Colors = { "_Color", "_EmissiveColor", "_TintColor" };
+        public static readonly string[] Floats = { "_EmissivePower", "_EmissiveColorPower", "_LuminanceCutoff", "_Cutoff", "_Threshold", "_Opacity", "_BrightnessClampOn", "_BlackBullet", "_Saturation", "_UseOverrideColor" };
+        public bool ValidName() { return Vector ? Array.IndexOf(Colors, Name) >= 0 || Name == "_MainTex_ST" : Array.IndexOf(Floats, Name) >= 0; }
+    }
     public sealed class CollectionInfo
     {
         public int Epoch, Id;
-        public string Guid = "", Name = "", Asset = "", EnemyGuid = "";
-        public byte[] Encode() { return Wire.Write(DungeonMessage.Collection, delegate(BinaryWriter w) { w.Write(Epoch); w.Write(Id); w.Write(Guid); w.Write(Name); w.Write(Asset); w.Write(EnemyGuid); }); }
+        public string Guid = "", Name = "", Asset = "", EnemyGuid = "", Shader = "", Keywords = "", Texture = "";
+        public readonly List<MaterialParameter> Parameters = new List<MaterialParameter>();
+        public byte[] Encode() { if (Parameters.Count > 16) throw new IOException("Too many native material values."); return Wire.Write(DungeonMessage.Collection, delegate(BinaryWriter w) { w.Write(Epoch); w.Write(Id); w.Write(Guid); w.Write(Name); w.Write(Asset); w.Write(EnemyGuid); w.Write(Shader); w.Write(Keywords); w.Write(Texture); w.Write(Parameters.Count); foreach (MaterialParameter p in Parameters) { w.Write(p.Name); w.Write(p.Vector); w.Write(p.X); w.Write(p.Y); w.Write(p.Z); w.Write(p.W); } }); }
         public static CollectionInfo Decode(byte[] bytes)
         {
             return Wire.Read(bytes, DungeonMessage.Collection, delegate(BinaryReader r) {
-                CollectionInfo value = new CollectionInfo { Epoch = r.ReadInt32(), Id = r.ReadInt32(), Guid = Wire.String(r, 256), Name = Wire.String(r, 256), Asset = Wire.String(r, 256), EnemyGuid = Wire.String(r, 32) };
+                CollectionInfo value = new CollectionInfo { Epoch = r.ReadInt32(), Id = r.ReadInt32(), Guid = Wire.String(r, 256), Name = Wire.String(r, 256), Asset = Wire.String(r, 256), EnemyGuid = Wire.String(r, 32), Shader = Wire.String(r, 256), Keywords = Wire.String(r, 512), Texture = Wire.String(r, 256) };
+                int count = r.ReadInt32(); if (count < 0 || count > 16) throw new IOException("Invalid native material count."); HashSet<string> properties = new HashSet<string>();
+                for (int i = 0; i < count; i++) { MaterialParameter p = new MaterialParameter { Name = Wire.String(r, 64), Vector = r.ReadBoolean(), X = r.ReadSingle(), Y = r.ReadSingle(), Z = r.ReadSingle(), W = r.ReadSingle() }; if (!p.ValidName() || !properties.Add(p.Name)) throw new IOException("Invalid native material property."); Wire.Range(p.X, -1000000, 1000000, p.Name); Wire.Range(p.Y, -1000000, 1000000, p.Name); Wire.Range(p.Z, -1000000, 1000000, p.Name); Wire.Range(p.W, -1000000, 1000000, p.Name); value.Parameters.Add(p); }
                 if (value.Id < 1 || value.Id > 4096 || value.Epoch < 1) throw new IOException("Invalid sprite collection ID.");
                 if (!EnemyAssetIdentity.Valid(value.EnemyGuid)) throw new IOException("Invalid native enemy asset identifier.");
+                if (value.Shader.IndexOf("..", StringComparison.Ordinal) >= 0 || value.Keywords.IndexOfAny(new[] { '\r', '\n' }) >= 0) throw new IOException("Invalid native shader identity.");
                 return value;
             });
         }
@@ -89,12 +100,18 @@ namespace GungeonTogether.Lan
             SpriteState value = new SpriteState { Id = r.ReadInt32(), CollectionId = r.ReadInt32(), SpriteId = r.ReadInt32(), SortingOrder = r.ReadInt32(), X = r.ReadSingle(), Y = r.ReadSingle(), Z = r.ReadSingle(), Rotation = r.ReadSingle(), ScaleX = r.ReadSingle(), ScaleY = r.ReadSingle(), ScaleZ = r.ReadSingle(), Height = r.ReadSingle(), Color = r.ReadUInt32(), OverrideColor = r.ReadUInt32(), Flags = r.ReadByte(), Layer = r.ReadByte() };
             value.Kind = r.ReadByte(); value.Anchor = r.ReadByte(); value.Width = r.ReadSingle(); value.HeightPixels = r.ReadSingle(); value.ClipX = r.ReadSingle(); value.ClipY = r.ReadSingle(); value.ClipRight = r.ReadSingle(); value.ClipTop = r.ReadSingle();
             if (value.Id == 0 || value.CollectionId < 1 || value.CollectionId > 4096 || value.SpriteId < 0 || value.SpriteId > 100000 || (value.Flags & ~31) != 0 || value.Layer > 31) throw new IOException("Invalid sprite snapshot.");
-            Wire.Range(value.X, -100000, 100000); Wire.Range(value.Y, -100000, 100000); Wire.Range(value.Z, -100000, 100000);
-            Wire.Range(value.Rotation, -3600, 3600); Wire.Range(value.ScaleX, -1000, 1000); Wire.Range(value.ScaleY, -1000, 1000); Wire.Range(value.ScaleZ, -1000, 1000); Wire.Range(value.Height, -1000, 1000);
-            if (value.Kind > 3 || value.Anchor > 8) throw new IOException("Unknown sprite geometry.");
-            Wire.Range(value.Width, 0, 100000); Wire.Range(value.HeightPixels, 0, 100000); Wire.Range(value.ClipX, -1000, 1000); Wire.Range(value.ClipY, -1000, 1000); Wire.Range(value.ClipRight, -1000, 1000); Wire.Range(value.ClipTop, -1000, 1000);
+            string error = value.NumericError(); if (error != null) throw new IOException("Invalid sprite " + value.Id + " collection " + value.CollectionId + ": " + error);
             return value;
         }
+        public string NumericError()
+        {
+            return Check(X, 100000, "X") ?? Check(Y, 100000, "Y") ?? Check(Z, 100000, "Z") ?? Check(Rotation, 3600, "rotation") ?? Check(ScaleX, 1000, "scale X") ?? Check(ScaleY, 1000, "scale Y") ?? Check(ScaleZ, 1000, "scale Z") ?? Check(Height, 1000, "height") ?? Check(Width, 100000, "width") ?? Check(HeightPixels, 100000, "height pixels") ?? Check(ClipX, 1000, "clip X") ?? Check(ClipY, 1000, "clip Y") ?? Check(ClipRight, 1000, "clip right") ?? Check(ClipTop, 1000, "clip top") ?? (Kind > 3 || Anchor > 8 ? "unknown geometry" : null);
+        }
+        private static string Check(float value, float limit, string field)
+        {
+            return float.IsNaN(value) || float.IsInfinity(value) || Math.Abs(value) > limit ? field + "=" + value.ToString(System.Globalization.CultureInfo.InvariantCulture) : null;
+        }
+
     }
 
     public sealed class WorldSnapshot
@@ -105,7 +122,7 @@ namespace GungeonTogether.Lan
         public double SentAt;
         public uint InputSequence;
         public float CameraX, CameraY, CameraZ, CameraSize, PlayerX, PlayerY, Health, Armor;
-        public int Ammo, Currency, Keys, Blanks;
+        public int Ammo, MaxAmmo, Currency, Keys, Blanks;
         public float MaxHealth;
         public int GunId = -1, ItemId = -1, ClipAmmo, ClipCapacity;
         public bool Reloading;
@@ -122,7 +139,7 @@ namespace GungeonTogether.Lan
                 w.Write(PlayerX); w.Write(PlayerY); w.Write(Health); w.Write(Armor); w.Write(Ammo); w.Write(Paused);
                 w.Write(Currency); w.Write(Keys); w.Write(Blanks); w.Write(GunName); w.Write(ActiveItemName); w.Write(ActiveItemCooldown);
                 w.Write(InfiniteAmmo); w.Write(InfiniteKeys); w.Write(ActiveItemReady); w.Write(ActiveItemActive); w.Write(IsGhost); w.Write(IsDead); w.Write(GameOver);
-                w.Write(MaxHealth); w.Write(GunId); w.Write(ItemId); w.Write(ClipAmmo); w.Write(ClipCapacity); w.Write(Reloading); w.Write(Sprites.Count);
+                w.Write(MaxAmmo); w.Write(MaxHealth); w.Write(GunId); w.Write(ItemId); w.Write(ClipAmmo); w.Write(ClipCapacity); w.Write(Reloading); w.Write(Sprites.Count);
                 foreach (SpriteState sprite in Sprites) sprite.Write(w);
             });
         }
@@ -134,7 +151,7 @@ namespace GungeonTogether.Lan
                 value.GunName = Wire.String(r, MaxHudNameLength); value.ActiveItemName = Wire.String(r, MaxHudNameLength); value.ActiveItemCooldown = r.ReadSingle();
                 value.InfiniteAmmo = r.ReadBoolean(); value.InfiniteKeys = r.ReadBoolean(); value.ActiveItemReady = r.ReadBoolean(); value.ActiveItemActive = r.ReadBoolean();
                 value.IsGhost = r.ReadBoolean(); value.IsDead = r.ReadBoolean(); value.GameOver = r.ReadBoolean();
-                value.MaxHealth = r.ReadSingle(); value.GunId = r.ReadInt32(); value.ItemId = r.ReadInt32(); value.ClipAmmo = r.ReadInt32(); value.ClipCapacity = r.ReadInt32(); value.Reloading = r.ReadBoolean();
+                value.MaxAmmo = r.ReadInt32(); value.MaxHealth = r.ReadSingle(); value.GunId = r.ReadInt32(); value.ItemId = r.ReadInt32(); value.ClipAmmo = r.ReadInt32(); value.ClipCapacity = r.ReadInt32(); value.Reloading = r.ReadBoolean();
                 value.ValidateHud();
                 Wire.Time(value.SentAt);
                 Wire.Range(value.CameraX, -100000, 100000); Wire.Range(value.CameraY, -100000, 100000); Wire.Range(value.CameraZ, -100000, 100000); Wire.Range(value.CameraSize, 0.01f, 10000);
@@ -151,7 +168,7 @@ namespace GungeonTogether.Lan
             Wire.Range(MaxHealth, 0, 10000);
             if (GunId < -1 || GunId > 1000000 || ItemId < -1 || ItemId > 1000000 || ClipAmmo < 0 || ClipAmmo > MaxHudCounter || ClipCapacity < 0 || ClipCapacity > MaxHudCounter)
                 throw new IOException("Invalid guest equipment HUD data.");
-            if (Ammo < 0 || Ammo > MaxHudCounter || Currency < 0 || Currency > MaxHudCounter || Keys < 0 || Keys > MaxHudCounter || Blanks < 0 || Blanks > MaxHudCounter)
+            if (MaxAmmo < 0 || MaxAmmo > MaxHudCounter || Ammo < 0 || Ammo > MaxHudCounter || Currency < 0 || Currency > MaxHudCounter || Keys < 0 || Keys > MaxHudCounter || Blanks < 0 || Blanks > MaxHudCounter)
                 throw new IOException("Invalid guest HUD counter.");
             Wire.Range(ActiveItemCooldown, 0, 1);
             if (GunName == null || ActiveItemName == null || GunName.Length > MaxHudNameLength || ActiveItemName.Length > MaxHudNameLength)
@@ -182,7 +199,7 @@ namespace GungeonTogether.Lan
             }
         }
         public static string String(BinaryReader r, int max) { string value = r.ReadString(); if (value.Length > max) throw new IOException("String too long."); return value; }
-        public static void Range(float value, float min, float max) { if (float.IsNaN(value) || float.IsInfinity(value) || value < min || value > max) throw new IOException("Invalid numeric snapshot value."); }
+        public static void Range(float value, float min, float max, string field = "numeric value") { if (float.IsNaN(value) || float.IsInfinity(value) || value < min || value > max) throw new IOException("Invalid snapshot " + field + "=" + value.ToString(System.Globalization.CultureInfo.InvariantCulture) + " (expected " + min + ".." + max + ")."); }
         public static void Time(double value) { if (double.IsNaN(value) || double.IsInfinity(value) || value < 0 || value > 1e12) throw new IOException("Invalid frame timestamp."); }
         public static bool Newer(uint value, uint previous) { return unchecked((int)(value - previous)) > 0; }
     }

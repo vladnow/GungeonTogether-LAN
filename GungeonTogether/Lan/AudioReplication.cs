@@ -46,11 +46,22 @@ namespace GungeonTogether.Lan
             return false;
         }
         private static uint Id(object value) { return value is uint ? (uint)value : AkSoundEngine.GetIDFromString((string)value); }
+        public int HurtDispatched { get; private set; }
+        public int HurtFailed { get; private set; }
+        private float lastHurt = -10, pendingHurt = -1;
+        public void ScheduleHurt() { pendingHurt = Time.realtimeSinceStartup + .10f; }
         public void PlayHurt(PlayerController player, int character)
         {
             if (player == null) return;
             replaying = true;
-            try { AkSoundEngine.SetSwitch("CHR_Player", CharacterCatalog.Identity(character), player.gameObject); AkSoundEngine.PostEvent("Play_CHR_general_hurt_01", player.gameObject); }
+            try {
+                PlayerController guest = GameManager.Instance.SecondaryPlayer; if (guest != null) player = guest;
+                if (player.GetComponent<AkGameObj>() == null) player.gameObject.AddComponent<AkGameObj>();
+                AkSoundEngine.SetSwitch("CHR_Player", CharacterCatalog.Identity(character), player.gameObject);
+                uint played = AkSoundEngine.PostEvent("Play_CHR_general_hurt_01", player.gameObject);
+                HurtDispatched++; lastHurt = Time.realtimeSinceStartup;
+                if (played == 0 && !DungeonPlugin.Instance.IsSmoke) { HurtFailed++; Debug.LogWarning("GT_HURT_AUDIO_FAILED character=" + CharacterCatalog.Identity(character)); }
+            }
             finally { replaying = false; }
         }
         private Source GetSource(GameObject obj)
@@ -74,10 +85,6 @@ namespace GungeonTogether.Lan
             Source source = GetSource(obj); if (source == null) return;
             Vector3 position = obj.transform.position;
             PlayerController guest = GameManager.Instance.SecondaryPlayer;
-            // The scene-effects damage counter guarantees the guest hurt cue
-            // alongside its native screen flash, even when short audio batches
-            // expire. Do not play the same cue twice through both paths.
-            if (guest != null && obj == guest.gameObject && Id(id) == AkSoundEngine.GetIDFromString("Play_CHR_general_hurt_01")) return;
             if (guest != null && Vector2.Distance(position.XY(), guest.CenterPosition) > 80) return;
             SoundCue cue = new SoundCue { Event = Id(id), Emitter = source.Id, X = position.x, Y = position.y };
             foreach (KeyValuePair<uint, uint> pair in source.Switches) cue.Switches.Add(new SoundSwitch { Group = pair.Key, Value = pair.Value });
@@ -107,12 +114,13 @@ namespace GungeonTogether.Lan
                     Source source;
                     if (!receivers.TryGetValue(cue.Emitter, out source)) {
                         if (receivers.Count >= 256) { Dropped++; continue; }
-                        source = new Source { Object = new GameObject("GT_NetworkSound") }; receivers.Add(cue.Emitter, source);
+                        source = new Source { Object = new GameObject("GT_NetworkSound") }; source.Object.AddComponent<AkGameObj>(); receivers.Add(cue.Emitter, source);
                     }
                     source.Touched = Time.realtimeSinceStartup;
                     source.Object.transform.position = new Vector3(cue.X, cue.Y, 0);
                     foreach (SoundSwitch s in cue.Switches) { AkSoundEngine.SetSwitch(s.Group, s.Value, source.Object); SwitchesApplied++; }
                     uint playing = AkSoundEngine.PostEvent(cue.Event, source.Object);
+                    if (cue.Event == AkSoundEngine.GetIDFromString("Play_CHR_general_hurt_01")) { lastHurt = Time.realtimeSinceStartup; HurtDispatched++; }
                     Dispatched++;
                     // Smoke intentionally intercepts PostEvent before the audio engine.
                     if (playing == 0 && !DungeonPlugin.Instance.IsSmoke) FailedEvents++;
@@ -122,6 +130,7 @@ namespace GungeonTogether.Lan
         }
         public void Maintain()
         {
+            if (pendingHurt >= 0 && Time.realtimeSinceStartup >= pendingHurt) { pendingHurt = -1; if (Time.realtimeSinceStartup - lastHurt > .25f) PlayHurt(GameManager.Instance.PrimaryPlayer, Session.GuestCharacter); }
             expiredReceivers.Clear();
             foreach (KeyValuePair<uint, Source> pair in receivers) if (Time.realtimeSinceStartup - pair.Value.Touched > 5) expiredReceivers.Add(pair.Key);
             foreach (uint id in expiredReceivers) { DestroySource(receivers[id]); receivers.Remove(id); }

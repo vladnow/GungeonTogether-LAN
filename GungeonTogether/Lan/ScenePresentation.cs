@@ -40,6 +40,7 @@ namespace GungeonTogether.Lan
         private static DungeonSession Session { get { return DungeonPlugin.Instance == null ? null : DungeonPlugin.Instance.Session; } }
         private static bool Host { get { return Session != null && Session.IsHost && Session.Phase == DungeonSession.RunPhase.Running; } }
         private static bool Mirror { get { return Session != null && Session.Mirroring; } }
+        private static float FiniteClock(float value, float minimum) { return EffectsState.NativeClock(value, minimum); }
         private static string Key(GoopDefinition d) { return d.name + "|" + (d.goopTexture == null ? "" : d.goopTexture.name); }
         internal void Capture(int epoch, double now, Action<byte[]> send)
         {
@@ -57,7 +58,7 @@ namespace GungeonTogether.Lan
                 if (kind < 0) { kind = s.Kinds.Count; s.Kinds.Add(key); }
                 IDictionary cells = (IDictionary)GoopCells.GetValue(pair.Value);
                 object c = cells[pair.Key]; if (c == null) continue;
-                s.Cells.Add(new SurfaceCell { X = pair.Key.x, Y = pair.Key.y, Kind = (byte)kind, Flags = (byte)(((bool)CellFire.GetValue(c) ? 1 : 0) | ((bool)CellElectric.GetValue(c) ? 2 : 0) | ((bool)CellFrozen.GetValue(c) ? 4 : 0)), Life = Mathf.Max(-1, (float)CellLife.GetValue(c)), FireTime = (float)CellFireTime.GetValue(c) });
+                s.Cells.Add(new SurfaceCell { X = pair.Key.x, Y = pair.Key.y, Kind = (byte)kind, Flags = (byte)(((bool)CellFire.GetValue(c) ? 1 : 0) | ((bool)CellElectric.GetValue(c) ? 2 : 0) | ((bool)CellFrozen.GetValue(c) ? 4 : 0)), Life = FiniteClock((float)CellLife.GetValue(c), -1), FireTime = FiniteClock((float)CellFireTime.GetValue(c), 0) });
             }
             var extant = (Dictionary<Transform, GameObject>)Boxes.GetValue(null);
             foreach (KeyValuePair<Transform, GameObject> pair in extant) {
@@ -72,6 +73,7 @@ namespace GungeonTogether.Lan
                 s.Speaker = hostSpeaker; s.Responses.AddRange(hostResponses);
                 s.Selected = (int)AccessTools.Field(typeof(GameUIRoot), "selectedResponse").GetValue(ui);
             }
+            NativeInterface.Capture(s, p);
             send(s.Encode());
         }
         private static string InputReasons(PlayerController player)
@@ -79,19 +81,24 @@ namespace GungeonTogether.Lan
             object value = AccessTools.Field(typeof(PlayerController), "m_disableInput").GetValue(player);
             FieldInfo reasons = AccessTools.Field(value.GetType(), "m_overrides");
             if (reasons == null) return "native input override";
-            IDictionary map = reasons.GetValue(value) as IDictionary;
-            if (map == null) return "native input override";
-            List<string> names = new List<string>(); foreach (object key in map.Keys) names.Add(key.ToString());
+            IEnumerable entries = reasons.GetValue(value) as IEnumerable;
+            if (entries == null) return "native input override";
+            List<string> names = new List<string>();
+            foreach (object entry in entries) {
+                FieldInfo key = entry == null ? null : AccessTools.Field(entry.GetType(), "key");
+                if (key == null) return "native input override";
+                names.Add((string)key.GetValue(entry));
+            }
             return string.Join(",", names.ToArray());
         }
         internal void Damaged() { damage++; }
         internal void Apply(EffectsState s)
         {
             if (!Wire.Newer(s.Sequence, accepted) && accepted != 0) return;
-            accepted = s.Sequence; MovementBlock = s.BlockReason;
+            accepted = s.Sequence; MovementBlock = s.BlockReason; Session.Interface.Apply(s);
             if (Wire.Newer(s.Damage, hurt)) {
                 if (Pixelator.Instance != null) Pixelator.Instance.HandleDamagedVignette(Vector2.zero);
-                Session.Audio.PlayHurt(GameManager.Instance.PrimaryPlayer, Session.GuestCharacter);
+                Session.Audio.ScheduleHurt();
                 HurtEffects++;
             }
             hurt = s.Damage;

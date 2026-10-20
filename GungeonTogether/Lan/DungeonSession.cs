@@ -27,6 +27,7 @@ namespace GungeonTogether.Lan
         private readonly InputAcknowledgements inputAcks = new InputAcknowledgements();
         private readonly WorldPresentation presentation = new WorldPresentation();
         public readonly NativeHud Hud = new NativeHud();
+        internal readonly NativeInterface Interface = new NativeInterface();
         internal readonly ScenePresentation SceneEffects = new ScenePresentation();
         public InventoryState Equipment { get; private set; }
         internal InventoryBook Book { get; private set; }
@@ -84,7 +85,7 @@ namespace GungeonTogether.Lan
 
         private void SetGenerating()
         {
-            presentation.Reset(); Hud.Dispose(); SceneEffects.Dispose(); Equipment = null; Book = null;
+            PlayerCamera.ResetEntry(); presentation.Reset(); Hud.Dispose(); Interface.Dispose(); SceneEffects.Dispose(); Equipment = null; Book = null;
             Audio.Dispose(); Audio = new AudioReplication();
             Phase = RunPhase.Generating; deadline = Time.realtimeSinceStartup + 120;
             transport.InactivityTimeout = 120; inputAcks.Clear();
@@ -138,7 +139,7 @@ namespace GungeonTogether.Lan
                 }
                 if (Time.realtimeSinceStartup >= nextNetworkLog) {
                     nextNetworkLog = Time.realtimeSinceStartup + 5;
-                    log("GT_NETWORK role=" + (IsHost ? "host" : "client") + " rttMs=" + transport.RoundTripMilliseconds.ToString("0") + " responseMs=" + InputLatencyMs.ToString("0") + " pendingBytes=" + transport.PendingBytes + " pendingMs=" + transport.OldestPendingMilliseconds.ToString("0") + " replaced=" + transport.ReplacedFrames + " audioCaptured=" + Audio.Captured + " audioDispatched=" + Audio.Dispatched + " audioFailed=" + Audio.FailedEvents + " audioDropped=" + Audio.Dropped);
+                    log("GT_NETWORK role=" + (IsHost ? "host" : "client") + " rttMs=" + transport.RoundTripMilliseconds.ToString("0") + " responseMs=" + InputLatencyMs.ToString("0") + " pendingBytes=" + transport.PendingBytes + " pendingMs=" + transport.OldestPendingMilliseconds.ToString("0") + " replaced=" + transport.ReplacedFrames + " audioCaptured=" + Audio.Captured + " audioDispatched=" + Audio.Dispatched + " audioFailed=" + Audio.FailedEvents + " audioDropped=" + Audio.Dropped + " hurtDispatched=" + Audio.HurtDispatched + " hurtFailed=" + Audio.HurtFailed);
                 }
             } catch (Exception ex) { Fail(ex.Message); }
         }
@@ -146,7 +147,7 @@ namespace GungeonTogether.Lan
         public void LateUpdate()
         {
             if (!Mirroring || GameManager.Instance.IsLoadingLevel) return;
-            try { sprites.PredictionEnabled = EnableMovementPrediction && !MuteClientInput && !InventoryBook.BookOpen; sprites.Render(Time.realtimeSinceStartup); Hud.Update(Snapshot); }
+            try { sprites.PredictionEnabled = EnableMovementPrediction && !MuteClientInput && !InventoryBook.BookOpen; sprites.Render(Time.realtimeSinceStartup); Hud.Update(Snapshot); Interface.Update(); }
             catch (Exception ex) { log("GT_PRESENTATION_ERROR: " + ex); Fail(ex.Message); }
         }
 
@@ -156,6 +157,7 @@ namespace GungeonTogether.Lan
         {
             if (!IsHost || Phase != RunPhase.Running || GameManager.Instance.IsLoadingLevel || controls == null) return;
             try {
+                PlayerCamera.TickEntry();
                 double now = Time.realtimeSinceStartup;
                 if (NetworkTiming.Due(ref nextMotion, now, 1.0 / 60)) {
                     PlayerMotion motion = NativeMovement.Capture(epoch, ++motionSequence, controls);
@@ -178,7 +180,7 @@ namespace GungeonTogether.Lan
             Camera viewCamera = GameManager.Instance.MainCameraController.Camera;
             if (viewCamera != null) input.ViewAspect = Mathf.Clamp(viewCamera.aspect, RemoteInput.MinViewAspect, RemoteInput.MaxViewAspect);
             if (SmokeControls) { input.MoveX = SmokeMoveX; input.AimX = 1; input.Buttons = SmokeShoot ? 1UL << 8 : 0; return input; }
-            if (MuteClientInput || InventoryBook.BookOpen || !Application.isFocused) return input;
+            if (MuteClientInput || InventoryBook.BookOpen || NativeInterface.MapOpen || !Application.isFocused) return input;
             BraveInput brave = BraveInput.GetInstanceForPlayer(0);
             if (brave == null || brave.ActiveActions == null) return input;
             GungeonActions a = brave.ActiveActions;
@@ -304,7 +306,7 @@ namespace GungeonTogether.Lan
         public bool CanClientLoadLevel { get { return IsHost || !InRun || loadingCommand; } }
         private void Send(byte[] bytes) { transport.Send(bytes); }
 
-        public void Disconnected() { if (InRun) Fail("Network connection lost. The host run is paused; return to the foyer to recover.", false); }
+        public void Disconnected(string detail = "") { if (InRun) Fail((string.IsNullOrEmpty(detail) ? "Network connection lost." : detail) + " The host run is paused; return to the foyer to recover.", false); }
         private void Fail(string reason, bool notify = true)
         {
             if (Phase == RunPhase.Fault) return;
@@ -320,7 +322,7 @@ namespace GungeonTogether.Lan
 
         public void Dispose()
         {
-            presentation.Reset(); Hud.Dispose(); SceneEffects.Dispose(); Equipment = null; Book = null;
+            PlayerCamera.ResetEntry(); presentation.Reset(); Hud.Dispose(); Interface.Dispose(); SceneEffects.Dispose(); Equipment = null; Book = null;
             if (controls != null) { controls.Dispose(); controls = null; }
             sprites.Dispose();
             Audio.Dispose();

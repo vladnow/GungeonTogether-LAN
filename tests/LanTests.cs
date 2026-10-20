@@ -41,7 +41,7 @@ internal static class LanTests
             writer.Write(magic); writer.Write(protocol); writer.Write(host); writer.Write(game); writer.Write(code); return Frame(ms.ToArray());
         }
     }
-    private static readonly string Magic = "GungeonTogether-LAN-dungeon-0.3.6";
+    private static readonly string Magic = "GungeonTogether-LAN-dungeon-0.3.9";
     private static void Reject(string game, string code, string magic, int protocol, bool role, string expected, string name)
     {
         using (LanTransport host = new LanTransport()) {

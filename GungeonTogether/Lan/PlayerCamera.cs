@@ -1,10 +1,27 @@
 using HarmonyLib;
 using UnityEngine;
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using Dungeonator;
 
 namespace GungeonTogether.Lan
 {
     internal static class PlayerCamera
     {
+        private sealed class DeferredSeal { internal RoomHandler Room; internal MethodBase Method; internal object[] Args; }
+        private static readonly List<DeferredSeal> pendingSeals = new List<DeferredSeal>();
+        internal static void ResetEntry() { pendingSeals.Clear(); }
+        internal static void TickEntry()
+        {
+            if (!ActiveHost) return;
+            for (int i = pendingSeals.Count - 1; i >= 0; i--) {
+                DeferredSeal entry = pendingSeals[i];
+                bool allInside = true;
+                foreach (PlayerController p in GameManager.Instance.AllPlayers) if (p != null && !p.IsGhost && !p.healthHaver.IsDead && p.CurrentRoom != entry.Room) allInside = false;
+                if (allInside) { pendingSeals.RemoveAt(i); entry.Method.Invoke(entry.Room, entry.Args); }
+            }
+        }
         private static DungeonSession Session { get { return DungeonPlugin.Instance == null ? null : DungeonPlugin.Instance.Session; } }
         private static bool ActiveHost {
             get { DungeonSession session = Session; return session != null && session.IsHost && session.Phase == DungeonSession.RunPhase.Running && !GameManager.Instance.IsLoadingLevel; }
@@ -59,12 +76,31 @@ namespace GungeonTogether.Lan
             {
                 if (!ActiveHost || __instance.Mode != DungeonDoorController.DungeonDoorMode.COMPLEX) return true;
                 if (__instance.IsSealed || __instance.isLocked || __instance.IsOpen || otherRigidbody == null || otherRigidbody.GetComponent<PlayerController>() == null) return true;
-                // Native shared-screen entry requires BOTH players within 0.3
-                // units and then forces their movement. Separate views need no
-                // proximity gate. Open still enforces native locks/seals; room
-                // battle regrouping is left to HandleCoopSpecificTimers.
+                foreach (PlayerController p in GameManager.Instance.AllPlayers) {
+                    if (p != null && !p.IsGhost && !p.healthHaver.IsDead && __instance.GetDistanceToPlayer(p.specRigidbody) > .8f) return false;
+                }
                 bool flipped = (__instance.northSouth && normal.y < 0) || (!__instance.northSouth && normal.x < 0);
                 __instance.Open(flipped);
+                return false;
+            }
+        }
+        [HarmonyPatch]
+        private static class SealAfterBothEnter
+        {
+            private static IEnumerable<MethodBase> TargetMethods()
+            {
+                foreach (MethodInfo method in typeof(RoomHandler).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)) if (method.Name == "SealRoom") yield return method;
+            }
+            private static bool Prefix(RoomHandler __instance, MethodBase __originalMethod, object[] __args)
+            {
+                if (!ActiveHost) return true;
+                bool any = false, all = true;
+                foreach (PlayerController p in GameManager.Instance.AllPlayers) {
+                    if (p == null || p.IsGhost || p.healthHaver.IsDead) continue;
+                    if (p.CurrentRoom == __instance) any = true; else all = false;
+                }
+                if (!any || all) return true;
+                if (!pendingSeals.Exists(delegate(DeferredSeal entry) { return entry.Room == __instance; })) pendingSeals.Add(new DeferredSeal { Room = __instance, Method = __originalMethod, Args = (object[])__args.Clone() });
                 return false;
             }
         }

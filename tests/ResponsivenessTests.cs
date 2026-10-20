@@ -27,11 +27,12 @@ static class ResponsivenessTests
         prediction.Record(Input(2, 1), 100.06); float x, y; prediction.Offset(100.08, true, out x, out y);
         Check(Math.Abs(x - .14f) < .0001 && y == 0, "replay unacknowledged walk immediately without world interpolation");
         Check(prediction.Pending == 1, "unacknowledged history retained");
-        prediction.Observe(Motion(2, 2), 100.08); prediction.Offset(100.09, true, out x, out y);
-        Check(x == 0 && prediction.Pending == 0, "acknowledged movement is never replayed twice");
+        PlayerMotion acknowledged = Motion(2, 2); acknowledged.X += .14f;
+        prediction.Observe(acknowledged, 100.08); prediction.Offset(100.09, true, out x, out y);
+        Check(Math.Abs(x) < .0001 && prediction.Pending == 0, "acknowledged native movement is not replayed twice");
         Check(!prediction.Observe(Motion(1, 1), 100.10), "stale authority cannot roll presentation backwards");
         prediction.Record(Input(3, 0, 1), 100.1); prediction.Offset(100.12, true, out x, out y);
-        Check(x == 0 && Math.Abs(y - .14f) < .0001, "independent vertical replay");
+        Check(Math.Abs(x) < .0001 && Math.Abs(y - .14f) < .0001, "independent vertical replay");
         prediction.Offset(100.13, false, out x, out y); Check(x == 0 && y == 0, "prediction can be disabled while retaining authority stream");
         prediction.Offset(100.5, true, out x, out y); Check(x == 0 && y == 0, "network stall stops speculative movement");
         prediction = new MovementPrediction(); prediction.Observe(Motion(1, 0), 100); prediction.Record(Input(2, 1), 100.06); prediction.Offset(100.14, true, out x, out y);
@@ -53,6 +54,17 @@ static class ResponsivenessTests
         for (uint i = 1; i <= 500; i++) { RemoteInput input = Input(i, 1); input.Epoch = 2; prediction.Record(input, 101 + i * .001); }
         Check(prediction.Pending <= 128, "input replay history remains bounded during backlog");
         prediction.Clear(); Check(prediction.Motion == null && prediction.Pending == 0, "session disposal clears all prediction state");
+        prediction.Observe(Motion(1, 0), 200); prediction.Record(Input(1, 1), 200.06);
+        prediction.Offset(200.08, true, out x, out y); float before = 10 + x;
+        PlayerMotion corrected = Motion(2, 1); corrected.X = 10.10f; prediction.Observe(corrected, 200.08);
+        prediction.Offset(200.08, true, out x, out y);
+        Check(Math.Abs(corrected.X + x - before) < .0001, "authority correction preserves presentation at packet arrival");
+        prediction.Offset(200.08 + MovementPrediction.CorrectionDuration + .001, true, out x, out y);
+        Check(Math.Abs(x) < .0001, "visual correction converges without replaying acknowledged input");
+        prediction.Clear(); prediction.Observe(Motion(1, 0), 300);
+        prediction.Record(Input(1, 1, 0, (1UL << 23) | (1UL << 11) | (1UL << 14)), 300.06);
+        prediction.Offset(300.08, true, out x, out y);
+        Check(Math.Abs(x - .14f) < .0001, "WASD menu-navigation, reload and gun-cycle bindings do not suppress walking prediction");
         SnapshotBuffer<object> buffer = new SnapshotBuffer<object>(.04, true); object sample = new object();
         for (uint i = 1; i <= 180; i++) buffer.Push(sample, i, i / 30.0, 10 + i / 30.0);
         Check(buffer.DelaySeconds >= .035 && buffer.DelaySeconds < .045, "stable thirty-Hz stream uses a shorter adaptive world buffer");
@@ -60,6 +72,14 @@ static class ResponsivenessTests
         for (uint i = 181; i <= 240; i++) { received = Math.Max(received, 10 + i / 30.0 + (i % 2 == 0 ? .06 : 0)); buffer.Push(sample, i, i / 30.0, received); }
         Check(buffer.DelaySeconds > .05 && buffer.DelaySeconds <= .09, "jitter raises smoothing within bounded range");
         object a, b; float blend; Check(buffer.Sample(received, out a, out b, out blend) && buffer.Count <= 32, "adaptive buffer remains sampleable and bounded");
+
+        prediction.Clear(); prediction.Observe(Motion(1, 0), 400); prediction.Record(Input(2, 1), 400.06);
+        PlayerMotion adjacent = Motion(2, 1); adjacent.X += .1f; adjacent.RoomX = 2; prediction.Observe(adjacent, 400.07); prediction.Offset(400.08, true, out x, out y);
+        Check(x > 0 && prediction.Pending == 1, "ordinary adjacent room entry preserves fresh input without an artificial cooldown");
+        CameraOffsetFilter anchor = new CameraOffsetFilter(); double square = 0; float cx, cy;
+        for (int i = 0; i < 120; i++) { anchor.Update((i % 2 == 0 ? 1 : -1) * .0625f, 1, i / 60.0, out cx, out cy); if (i > 20) square += cx * cx; }
+        Check(square / 99 < .0005, "alternating native camera-anchor jitter is attenuated");
+        anchor.Clear(); anchor.Update(4, 5, 3, out cx, out cy); Check(cx == 4 && cy == 5, "camera reset uses a new cinematic or floor anchor immediately");
         Console.WriteLine("RESPONSIVENESS_TESTS_PASS: " + passed);
     }
 }

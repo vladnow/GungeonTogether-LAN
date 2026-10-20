@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.3.9
+
+- Synchronize the authoritative primary player mastery-token count used by native room-injection prerequisites. Prevent the reproduced client-only fourth-floor Sell Creep injection when client placeholder controllers are temporarily absent. Eligible host conditions remain supported.
+- Preserve native non-mastery prerequisites, host generation and the layout-hash barrier. The generation override applies only to an active LAN client during generation.
+- Show actual native input-override reasons in DETAILS, preserving cinematic/dialogue input restrictions.
+- Require matching 0.3.9 builds on both PCs; retain 0.3.8 interface, rendering, movement and audio changes.
+- Local controlled tests reached the fifth main floor. Full natural combat/campaign and physical two-PC/Radmin validation remain separate.
+
+## 0.3.8
+
+- Keep original local sprite shaders, keywords, texture identity/UV transforms and supported color/emission/cutout parameters. Apply dynamic authoritative tint separately. This covers native shadow, gun and procedural projectile material variants without shipping game assets.
+- Wait for both living players at ordinary doors, open immediately once both are close, and avoid the native forced-movement sequence. Defer a room seal until both living players enter so a trailing player is not pulled into a prematurely sealed room.
+- Preserve unacknowledged walking input across ordinary adjacent-room changes, use host door state while clipping client prediction, and filter only small camera-anchor changes caused by animation/pixel rounding. Wall/pit checks and authoritative teleports remain.
+- Mirror native default labels such as shop prices; drive native boss bar artwork with host health/name data. Controllers that contain several boss segments use a combined health fraction on the guest.
+- Exclude local map artwork from world-sprite suppression, update native markers/exploration, and allow the guest to hold the normal map binding. Guest map teleport selection is not enabled.
+- Use authoritative maximum ammo and keep native ammo widgets within the viewport.
+- Normalize native goop clock sentinels (including permanent lifetimes), accept finite signed sprite geometry, and discard unrenderable non-finite host visual transforms with diagnostics. Received packet validation remains strict. Numeric failure messages identify the offending value/field and sprite context where available.
+- Register network sound emitters with Wwise. Keep native hurt cues/switches and add a damage-counter fallback, with separate hurt dispatch/failure diagnostics. Preserve the first session failure when the transport disconnects.
+- Add the support Discord link to the public README: https://discord.gg/wuZQBhbrHk . This becomes visible on Thunderstore when this package description is published.
+
+Update both PCs to 0.3.8. Early-floor alpha; fourth-floor Sell Creep mismatch and full-campaign validation remain open. See RELEASE-NOTES-0.3.8.md and VALIDATION-0.3.8.md.
+
 ## 0.3.7
 
 - Replace the IMGUI imitation of the guest HUD with the game's actual heart, blank, consumable, gun, active-item and status-bar controllers. Keep the original single-player layout on the guest. Detached inactive UI equipment copies never enter player inventories or run Pickup callbacks.

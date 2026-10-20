@@ -1,8 +1,8 @@
 {
   "name": "GungeonTogether_LAN",
-  "version_number": "0.3.7",
+  "version_number": "0.3.9",
   "website_url": "https://github.com/vladnow/GungeonTogether-LAN",
-  "description": "Experimental two-player LAN/Radmin co-op. Native guest HUD, dialogue, fire/poison and hit feedback; independent cameras and smoother walking. Early-floor alpha; full campaign incomplete.",
+  "description": "Experimental two-player LAN/Radmin co-op. Native HUD/map, shared cash/keys and a fourth-floor generation sync fix. Alpha; full natural campaign completion is not established.",
   "dependencies": [
     "BepInEx-BepInExPack_EtG-5.4.2101"
   ]
