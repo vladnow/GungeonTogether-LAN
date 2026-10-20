@@ -19,7 +19,7 @@ internal static class DungeonTests
             w.Write(0f); w.Write(0f); w.Write(3f); w.Write(1f); w.Write(100); w.Write(false);
             w.Write(currency); w.Write(keys); w.Write(blanks); w.Write(gun); w.Write(active); w.Write(cooldown);
             for (int i = 0; i < 7; i++) w.Write(false);
-            w.Write(3f); w.Write(-1); w.Write(-1); w.Write(0); w.Write(0); w.Write(false);
+            w.Write(350); w.Write(3f); w.Write(-1); w.Write(-1); w.Write(0); w.Write(0); w.Write(false);
             w.Write(0);
         });
     }

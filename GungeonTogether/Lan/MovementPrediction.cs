@@ -33,11 +33,12 @@ namespace GungeonTogether.Lan
         public bool Observe(PlayerMotion value, double now)
         {
             if (motion != null && (value.Epoch < motion.Epoch || (value.Epoch == motion.Epoch && !Wire.Newer(value.Sequence, motion.Sequence)))) return false;
-            bool reset = motion == null || value.Epoch != motion.Epoch || value.RoomX != motion.RoomX || value.RoomY != motion.RoomY ||
+            bool roomChange = motion != null && value.Epoch == motion.Epoch && (value.RoomX != motion.RoomX || value.RoomY != motion.RoomY);
+            bool reset = motion == null || value.Epoch != motion.Epoch || roomChange ||
                 (value.X - motion.X) * (value.X - motion.X) + (value.Y - motion.Y) * (value.Y - motion.Y) > 2.25f || !value.AllowPrediction;
             float oldX = 0, oldY = 0;
             if (!reset && motion.AllowPrediction) { Offset(now, true, out oldX, out oldY); oldX += motion.X; oldY += motion.Y; }
-            if (reset) { commands.Clear(); blockedUntil = now + .05; correctionX = correctionY = 0; Resets++; }
+            if (reset) { if (roomChange && motion != null && (value.X - motion.X) * (value.X - motion.X) + (value.Y - motion.Y) * (value.Y - motion.Y) < 2.25f) { commands.RemoveAll(delegate(Command c) { return !Wire.Newer(c.Sequence, value.InputSequence); }); blockedUntil = now; } else { commands.Clear(); blockedUntil = now + .05; } correctionX = correctionY = 0; Resets++; }
             else commands.RemoveAll(delegate(Command c) { return !Wire.Newer(c.Sequence, value.InputSequence); });
             bool smooth = !reset && motion.AllowPrediction && now - received <= StaleAfter;
             motion = value; received = now;
@@ -74,4 +75,18 @@ namespace GungeonTogether.Lan
         public bool Fresh(double now) { return motion != null && now - received <= StaleAfter; }
         public void Clear() { motion = null; commands.Clear(); received = blockedUntil = correctedAt = 0; correctionX = correctionY = 0; }
     }
+    // Smooth only changes in the native camera anchor (animation/pixel rounding),
+    // never the locally predicted player position itself.
+    public sealed class CameraOffsetFilter
+    {
+        private float x, y; private double last; private bool initialized;
+        public void Update(float targetX, float targetY, double now, out float resultX, out float resultY)
+        {
+            if (!initialized || now < last || Math.Abs(targetX - x) + Math.Abs(targetY - y) > 2) { x = targetX; y = targetY; initialized = true; }
+            else { float gain = (float)(1 - Math.Exp(-Math.Min(.1, now - last) * 25)); x += (targetX - x) * gain; y += (targetY - y) * gain; }
+            last = now; resultX = x; resultY = y;
+        }
+        public void Clear() { initialized = false; }
+    }
+
 }

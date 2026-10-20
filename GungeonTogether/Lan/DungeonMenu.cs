@@ -107,7 +107,7 @@ namespace GungeonTogether.Lan
             Fill(new Rect(28, 21, 8, 5), Gold);
             Fill(new Rect(24, 50, 16, 3), Border);
             GUI.Label(new Rect(55, 18, 480, 39), "GUNGEON TOGETHER", menuTitle);
-            GUI.Label(new Rect(55, 59, 490, 23), "NETWORK CO-OP   /   LAN 0.3.7 · ALPHA", menuSmall);
+            GUI.Label(new Rect(55, 59, 490, 23), "NETWORK CO-OP   /   LAN 0.3.9 · ALPHA", menuSmall);
             if (MenuButton(new Rect(550, 23, 36, 32), "×", true, false)) visible = false;
 
             if (!UsesSeparateProfile) {

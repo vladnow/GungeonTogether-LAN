@@ -49,11 +49,11 @@ namespace GungeonTogether.Lan
                     IntVector2 cellPoint = new IntVector2(Mathf.FloorToInt(point.x), Mathf.FloorToInt(point.y));
                     if (!data.CheckInBoundsAndValid(cellPoint)) return accepted;
                     CellData cell = data[cellPoint];
-                    if (cell.type != CellType.FLOOR || cell.parentRoom == null || cell.parentRoom.area.basePosition.x != motion.RoomX || cell.parentRoom.area.basePosition.y != motion.RoomY) return accepted;
+                    if (cell.type != CellType.FLOOR || cell.parentRoom == null) return accepted;
                 }
                 foreach (ICollidableObject item in PhysicsEngine.Instance.GetOverlappingCollidableObjects(center - half, center + half, false, true, mask, false)) {
                     SpeculativeRigidbody body = item as SpeculativeRigidbody;
-                    if (body != null && body.enabled && body.CollideWithOthers && body.gameObject.activeInHierarchy && body.GetComponent<PlayerController>() == null) return accepted;
+                    if (body != null && body.enabled && body.CollideWithOthers && body.gameObject.activeInHierarchy && body.GetComponent<PlayerController>() == null && !NativeInterface.OpenDoorCollider(body)) return accepted;
                 }
                 accepted = delta;
             }

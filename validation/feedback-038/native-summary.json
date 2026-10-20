@@ -1,0 +1,109 @@
+{
+  "version": "0.3.8",
+  "runtime_sha256": "1e05dcabeb88341cd317ece450aae2ec1fc1e1afae61ab0df06d56d76b31f8cd",
+  "ready_for_alpha_review": true,
+  "development_preview": false,
+  "automated_checks": 375,
+  "checks": {
+    "LAN": 34,
+    "Dungeon": 85,
+    "Profile": 19,
+    "Rendering": 38,
+    "Display": 9,
+    "Acknowledgements": 9,
+    "SpriteVisibility": 20,
+    "Presentation": 30,
+    "Responsiveness": 37,
+    "Inventory": 31,
+    "Effects": 39,
+    "LatencyFresh": 24
+  },
+  "native_managed_binding_checks": 65,
+  "dungeon_smoke_passes": 6,
+  "native_scenarios": [
+    {
+      "case": "release-pilot-038-c",
+      "kind": "feedback",
+      "character": "Pilot",
+      "floor_layouts": [
+        {
+          "epoch": 1,
+          "sha256": "78f0a3aa5bc4289f541faccbacb7d4b5d03ad5a3af78983a03820c9f2a3724f9"
+        },
+        {
+          "epoch": 2,
+          "sha256": "0bf91ed176574a922a5deef71b9d9e56e396d33ef2633e145f0e2516272d6a04"
+        },
+        {
+          "epoch": 3,
+          "sha256": "931af3d43fd94f297f6ac554b92d8062064dc8440e24b6da0190be226c4646cc"
+        }
+      ],
+      "assertions": {
+        "host": 52,
+        "client": 115
+      },
+      "silent": true,
+      "windowed_no_activate_unconstrained_cursor": true
+    },
+    {
+      "case": "release-hunter-038",
+      "kind": "feedback",
+      "character": "Hunter",
+      "floor_layouts": [
+        {
+          "epoch": 1,
+          "sha256": "5af4b818aced2a653da8f371c1e3fe79a37dc90500dfc24446be3c2640a6e0ba"
+        },
+        {
+          "epoch": 2,
+          "sha256": "4656df4a0cbb5aca7d9310a2da5effa62b028d052b4ea8642a14fd6f1eae48bc"
+        },
+        {
+          "epoch": 3,
+          "sha256": "a971627150865a2c7910ccb0c9fcd552a6926c8889e3f518742b25f07027eb49"
+        }
+      ],
+      "assertions": {
+        "host": 52,
+        "client": 124
+      },
+      "silent": true,
+      "windowed_no_activate_unconstrained_cursor": true
+    },
+    {
+      "case": "release-keyboard-038",
+      "kind": "response",
+      "character": "Pilot",
+      "floor_layouts": [
+        {
+          "epoch": 1,
+          "sha256": "93010a1c64bb33dc1cd743b805cbc8057f725331ef92fca5964ca0e2472928f3"
+        },
+        {
+          "epoch": 2,
+          "sha256": "3861c0eedf766d484b82e68ebd9f959e812cabec19bbf28046b56e482d85fcdb"
+        }
+      ],
+      "assertions": {
+        "host": 6,
+        "client": 7
+      },
+      "silent": true,
+      "windowed_no_activate_unconstrained_cursor": true
+    }
+  ],
+  "local_response": {
+    "median_ms": 14.118,
+    "p95_ms": 22.133,
+    "trials": 12
+  },
+  "prior_release_files_unchanged": 554,
+  "normal_save_profile_files_unchanged": 8,
+  "physical_two_pc_radmin_tested": false,
+  "full_natural_campaign_completed": false,
+  "audible_output_tested": false,
+  "fresh_manager_import_tested": false,
+  "remote_upload_performed": false,
+  "known_blocker": "Fourth-floor Sell Creep layout mismatch remains unresolved."
+}

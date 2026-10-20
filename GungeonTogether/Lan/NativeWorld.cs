@@ -13,7 +13,8 @@ namespace GungeonTogether.Lan
         [Serializable]
         public sealed class GenerationState
         {
-            public int Version = 1;
+            public int Version = 2;
+            public int PrimaryMasteryTokens;
             public GameStatsManager PersistentStats;
             public GameStats SessionStats;
             public GameStats SavedSessionStats;
@@ -22,6 +23,8 @@ namespace GungeonTogether.Lan
             public List<string> ProcessedTrackables;
             public bool ForceEarlyChest;
         }
+        internal static int GenerationPrimaryMasteryTokens { get; private set; }
+
         private static FieldInfo StatsField(string name)
         {
             FieldInfo field = typeof(GameStatsManager).GetField(name, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
@@ -44,7 +47,8 @@ namespace GungeonTogether.Lan
                 SessionCharacter = (PlayableCharacters)StatsField("m_sessionCharacter").GetValue(original),
                 SessionSynergies = (HashSet<int>)StatsField("m_sessionSynergies").GetValue(original),
                 ProcessedTrackables = (List<string>)StatsField("m_singleProcessedEncounterTrackables").GetValue(original),
-                ForceEarlyChest = MetaInjectionData.ForceEarlyChest
+                ForceEarlyChest = MetaInjectionData.ForceEarlyChest,
+                PrimaryMasteryTokens = GameManager.HasInstance && GameManager.Instance.PrimaryPlayer != null ? GameManager.Instance.PrimaryPlayer.MasteryTokensCollectedThisRun : 0
             };
             string context = FullInspector.SerializationHelpers.SerializeToContent<GenerationState, FullInspector.FullSerializerSerializer>(state);
             if (context.Length > 131072) throw new IOException("Generation context exceeds alpha protocol limit.");
@@ -54,7 +58,7 @@ namespace GungeonTogether.Lan
         public static void ImportGenerationContext(string context)
         {
             GenerationState state = FullInspector.SerializationHelpers.DeserializeFromContent<GenerationState, FullInspector.FullSerializerSerializer>(context);
-            if (state == null || state.Version != 1 || !Enum.IsDefined(typeof(PlayableCharacters), state.SessionCharacter)) throw new IOException("Invalid generation envelope.");
+            if (state == null || state.Version != 2 || state.PrimaryMasteryTokens < 0 || !Enum.IsDefined(typeof(PlayableCharacters), state.SessionCharacter)) throw new IOException("Invalid generation envelope.");
             GameStatsManager stats = state.PersistentStats;
             if (stats == null || stats.m_flags == null || stats.m_encounteredRooms == null || stats.m_characterStats == null) throw new IOException("Invalid host generation context.");
             StatsField("m_sessionStats").SetValue(stats, state.SessionStats);
@@ -66,6 +70,7 @@ namespace GungeonTogether.Lan
             // conditionally sets it, so different prior-floor outcomes otherwise
             // change room generation even with matching seeds and saved history.
             MetaInjectionData.ForceEarlyChest = state.ForceEarlyChest;
+            GenerationPrimaryMasteryTokens = state.PrimaryMasteryTokens;
             typeof(GameStatsManager).GetField("m_instance", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static).SetValue(null, stats);
         }
 

@@ -71,7 +71,7 @@ namespace GungeonTogether.Lan
                 root.heartControllers[0].UpdateHealth(GameManager.Instance.SecondaryPlayer.healthHaver); root.blankControllers[0].UpdateBlanks(state.Blanks);
                 consumables.Currency = state.Currency; consumables.KeyBullets = state.Keys; consumables.InfiniteKeys = state.InfiniteKeys;
                 root.UpdatePlayerConsumables(consumables);
-                if (inventory != null) root.ammoControllers[0].UpdateUIGun(inventory, 0);
+                if (inventory != null) { root.ammoControllers[0].UpdateUIGun(inventory, 0); FitAmmo(root.ammoControllers[0]); }
                 root.itemControllers[0].UpdateItem(item, items);
                 EffectsState effects = DungeonPlugin.Instance.Session.SceneEffects.LastState;
                 if (effects != null) {
@@ -96,6 +96,21 @@ namespace GungeonTogether.Lan
                 for (int i = 1; i < root.itemControllers.Count; i++) { root.itemControllers[i].ToggleRenderers(false); root.itemControllers[i].GetComponent<dfPanel>().IsVisible = false; }
                 DrawnFrames++;
             } finally { reading = null; drawing = false; }
+        }
+        public int ViewportCorrections { get; private set; }
+        private void FitAmmo(GameUIAmmoController controller)
+        {
+            Camera camera = controller.GunBoxSprite.GetManager().RenderCamera; if (camera == null) return;
+            float right = 0;
+            foreach (dfControl control in controller.GetComponentsInChildren<dfControl>()) {
+                if (control is dfPanel || !control.IsVisible || control.Opacity < .01f) continue;
+                Bounds bounds = control.GetBounds(); right = Mathf.Max(right, camera.WorldToViewportPoint(bounds.max).x);
+            }
+            float limit = 1f - 6f / Math.Max(1, Screen.width);
+            if (right > limit + .001f) {
+                float world = (right - limit) * camera.orthographicSize * 2 * camera.aspect;
+                controller.transform.position -= Vector3.right * world; ViewportCorrections++;
+            }
         }
         public void Dispose()
         {
@@ -148,6 +163,8 @@ namespace GungeonTogether.Lan
         private static class Clip { private static bool Prefix(ref int __result) { if (reading == null) return true; __result = reading.ClipAmmo; return false; } }
         [HarmonyPatch(typeof(Gun), "get_InfiniteAmmo")]
         private static class Infinite { private static bool Prefix(ref bool __result) { if (reading == null) return true; __result = reading.InfiniteAmmo; return false; } }
+        [HarmonyPatch(typeof(Gun), "get_AdjustedMaxAmmo")]
+        private static class AmmoMaximum { private static bool Prefix(ref int __result) { if (reading == null) return true; __result = reading.InfiniteAmmo ? int.MaxValue : reading.MaxAmmo; return false; } }
         [HarmonyPatch(typeof(Gun), "get_IsReloading")]
         private static class Reload { private static bool Prefix(ref bool __result) { if (reading == null) return true; __result = reading.Reloading; return false; } }
         [HarmonyPatch(typeof(ProjectileModule), "GetModNumberOfShotsInClip")]
