@@ -1,4 +1,4 @@
-param([string]$OutputDirectory = (Join-Path $PSScriptRoot 'release'), [switch]$DevelopmentPreview)
+﻿param([string]$OutputDirectory = (Join-Path $PSScriptRoot 'release'), [switch]$DevelopmentPreview)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.Drawing
@@ -31,6 +31,9 @@ $sidecars["START-HERE-$version.md"] = Join-Path $publication 'START-HERE.md'
 $ownerGuide = Join-Path $publication 'private\UPDATE-GITHUB.ru.md'
 $sidecars["UPDATE-GITHUB-$version.md"] = if (Test-Path -LiteralPath $ownerGuide) { $ownerGuide } else { Join-Path $publication 'UPDATE-GITHUB.md' }
 $sidecars["PUBLISH-THUNDERSTORE-$version.md"] = Join-Path $publication 'PUBLISH-THUNDERSTORE.md'
+$sidecars["INSTALL-PROFILES-$version.md"] = Join-Path $publication 'INSTALL-PROFILES.md'
+$referenceNotes = Join-Path $publication ("REFERENCE-NOTES-$version.md")
+if (Test-Path -LiteralPath $referenceNotes) { $sidecars["REFERENCE-NOTES-$version.md"] = $referenceNotes }
 foreach ($name in (@($packageName,$sourceName,$checksumName) + @($sidecars.Keys))) { if (Test-Path -LiteralPath (Join-Path $out $name)) { throw ('Refusing to overwrite release: ' + $name) } }
 $sourceFiles = @('README.md','Build-LAN.ps1','Build-Launcher.ps1','Build-Thunderstore.ps1','Test-LAN.ps1','Test-Dungeon.ps1','Test-Profile.ps1','Test-Rendering.ps1','Test-GameBindings.ps1','Test-Display.ps1','Test-Acknowledgements.ps1','Test-Latency.ps1','Test-SpriteVisibility.ps1','GungeonTogether\GungeonTogether.csproj','GungeonTogether\Networking\Players\RemotePlayerAvatar.cs','launcher\Launcher.cs','tests\LanTests.cs','tests\DungeonTests.cs','tests\ProfileTests.cs','tests\RenderingTests.cs','tests\DisplayProfileTests.cs','tests\AcknowledgementTests.cs','tests\TransportLatencyTests.cs','tests\SpriteVisibilityTests.cs','validation\summary.json','validation\latency-031\README.md','validation\latency-031\fifo-high-entropy.txt','validation\latency-031\latest-high-entropy.txt')
 $sourceFiles += @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'GungeonTogether\Lan') -Filter '*.cs' -File | Where-Object Name -ne 'LanPlugin.cs' | ForEach-Object { 'GungeonTogether\Lan\' + $_.Name })
@@ -49,7 +52,8 @@ $sourceFiles += @('Test-Effects.ps1','tests\EffectsTests.cs','validation\feedbac
 $publicationSourceFiles = @('README.md','LICENSE','NOTICE.md','CHANGELOG.md','manifest.json','VALIDATION.md','INSTALL-PROFILES.md','Build-Icon.ps1','UPDATE-GITHUB.md','PUBLISH-THUNDERSTORE.md')
 $publicationSourceFiles += @(Get-ChildItem -LiteralPath $publication -Filter 'RELEASE-NOTES-*.md' -File | Select-Object -ExpandProperty Name)
 $publicationSourceFiles += @(Get-ChildItem -LiteralPath $publication -Filter 'VALIDATION-*.md' -File | Select-Object -ExpandProperty Name)
-$publicationSourceFiles += 'START-HERE.md'
+$publicationSourceFiles += @('START-HERE.md','REFERENCE-NOTES-0.4.0.md')
+$sourceFiles += @('Test-RunRules.ps1','tests\RunRulesTests.cs','validation\features-040\README.md','validation\features-040\native-summary.json')
 foreach ($relative in $sourceFiles) { if (!(Test-Path -LiteralPath (Join-Path $PSScriptRoot $relative) -PathType Leaf)) { throw ('Missing source package input: ' + $relative) } }
 foreach ($name in $publicationSourceFiles) { if (!(Test-Path -LiteralPath (Join-Path $publication $name) -PathType Leaf)) { throw ('Missing publication input: ' + $name) } }
 function Add-Entry($zip,[string]$path,[string]$name) {
@@ -80,6 +84,12 @@ foreach ($name in $sidecars.Keys) {
  if ($sidecars[$name] -eq $ownerGuide) {
   $ownerText = [IO.File]::ReadAllText($ownerGuide).Replace('__RELEASE_VERSION__', $version)
   [IO.File]::WriteAllText((Join-Path $out $name), $ownerText, (New-Object Text.UTF8Encoding($false)))
+ } elseif ($name -eq "START-HERE-$version.md") {
+  $startText = [IO.File]::ReadAllText($sidecars[$name]).Replace('INSTALL-PROFILES.md', "INSTALL-PROFILES-$version.md").Replace('UPDATE-GITHUB.md', "UPDATE-GITHUB-$version.md").Replace('PUBLISH-THUNDERSTORE.md', "PUBLISH-THUNDERSTORE-$version.md")
+  [IO.File]::WriteAllText((Join-Path $out $name), $startText, (New-Object Text.UTF8Encoding($false)))
+ } elseif ($name -eq "INSTALL-PROFILES-$version.md") {
+  $installText = [IO.File]::ReadAllText($sidecars[$name]).Replace('VALIDATION.md', "VALIDATION-$version.md")
+  [IO.File]::WriteAllText((Join-Path $out $name), $installText, (New-Object Text.UTF8Encoding($false)))
  } else { [IO.File]::Copy($sidecars[$name], (Join-Path $out $name), $false) }
 }
 Get-Item -LiteralPath (Join-Path $out $packageName),(Join-Path $out $sourceName) | Select-Object Name,Length
