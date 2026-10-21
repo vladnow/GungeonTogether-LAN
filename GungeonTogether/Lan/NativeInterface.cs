@@ -15,6 +15,7 @@ namespace GungeonTogether.Lan
         private readonly HashSet<RoomHandler> revealed = new HashSet<RoomHandler>();
         private static readonly FieldInfo NativeLabels = AccessTools.Field(typeof(GameUIRoot), "extantBasicLabels");
         private static readonly FieldInfo BossHealth = AccessTools.Field(typeof(GameUIBossHealthController), "m_cachedPercentHealths");
+        private static readonly MethodInfo UnknownExit = AccessTools.Method(typeof(Minimap), "DrawUnknownRoomSquare");
         private bool mapHeld;
         private static DungeonDoorController[] hostDoors;
         private static readonly HashSet<long> openDoors = new HashSet<long>();
@@ -28,7 +29,7 @@ namespace GungeonTogether.Lan
             GameUIRoot root = GameUIRoot.Instance;
             if (root == null) return;
             foreach (DefaultLabelController label in (List<DefaultLabelController>)NativeLabels.GetValue(root)) {
-                if (label == null || label.targetObject == null || !label.panel.IsVisible || label.label == null || (label.targetObject.position.XY() - guest.CenterPosition).sqrMagnitude > 576) continue;
+                if (label == null || label.targetObject == null || !PersonalLoot.LabelVisible(label, 1) || label.label == null || (label.targetObject.position.XY() - guest.CenterPosition).sqrMagnitude > 576) continue;
                 Vector3 position = label.targetObject.position + label.offset;
                 string text = label.label.Text ?? ""; if (text.Length > 2048) text = text.Substring(0, 2048);
                 state.Labels.Add(new WorldLabel { Id = label.GetInstanceID(), X = position.x, Y = position.y, Z = position.z, Text = text });
@@ -76,7 +77,18 @@ namespace GungeonTogether.Lan
             if (Minimap.HasInstance) foreach (MapRoomState value in state.MapRooms) {
                 foreach (RoomHandler room in GameManager.Instance.Dungeon.data.rooms) {
                     if (room.area.basePosition.x != value.X || room.area.basePosition.y != value.Y) continue;
-                    if (revealed.Add(room)) Minimap.Instance.RevealMinimapRoom(room, true, true, false);
+                    if (revealed.Add(room)) {
+                        Minimap.Instance.RevealMinimapRoom(room, true, true, value.Visibility == (byte)RoomHandler.VisibilityStatus.CURRENT);
+                        // Force-revealing a replicated room deliberately bypasses
+                        // the native loop that draws exits to unexplored rooms.
+                        // Draw those native markers too, without revealing secrets.
+                        foreach (RoomHandler adjacent in room.connectedRooms) {
+                            if (adjacent == null || adjacent.IsSecretRoom || adjacent.RevealedOnMap) continue;
+                            RuntimeExitDefinition exit = room.GetExitDefinitionForConnectedRoom(adjacent);
+                            bool locked = exit != null && exit.linkedDoor != null && exit.linkedDoor.isLocked;
+                            UnknownExit.Invoke(Minimap.Instance, new object[] { room, adjacent, true, -1, locked });
+                        }
+                    }
                     break;
                 }
             }
@@ -87,9 +99,13 @@ namespace GungeonTogether.Lan
             Minimap map = Minimap.Instance;
             foreach (PlayerController p in GameManager.Instance.AllPlayers) if (p != null) map.UpdatePlayerPositionExact(p.CenterPosition, p);
             BraveInput input = BraveInput.GetInstanceForPlayer(0);
-            if (input == null || input.ActiveActions == null || !Application.isFocused) return;
-            InControl.PlayerAction action = input.ActiveActions.GetActionFromType((GungeonActions.GungeonActionType)19);
-            bool pressed = action != null && action.IsPressed && !InventoryBook.BookOpen && !GameUIRoot.Instance.DisplayingConversationBar;
+            UpdateMapInput(input == null ? null : input.ActiveActions, Application.isFocused);
+        }
+        internal void UpdateMapInput(GungeonActions actions, bool focused)
+        {
+            if (!Minimap.HasInstance) return;
+            Minimap map = Minimap.Instance;
+            bool pressed = focused && actions != null && actions.MapAction.IsPressed && !InventoryBook.BookOpen && !GameUIRoot.Instance.DisplayingConversationBar;
             if (pressed && !mapHeld) map.ToggleMinimap(true, true);
             else if (!pressed && mapHeld) map.ToggleMinimap(false);
             mapHeld = pressed;
@@ -104,5 +120,14 @@ namespace GungeonTogether.Lan
         private static class NativeBossTick { private static bool Prefix() { return !NativeHud.Mirroring; } }
         [HarmonyPatch(typeof(GameUIRoot), "UnfoldGunventory")]
         private static class LocalMapInventory { private static bool Prefix() { return !NativeHud.Mirroring; } }
+        [HarmonyPatch(typeof(MinimapUIController), "AttemptTeleport")]
+        private static class HostMapTravel
+        {
+            private static bool Prefix(ref bool __result)
+            {
+                if (!NativeHud.Mirroring) return true;
+                __result = false; return false;
+            }
+        }
     }
 }

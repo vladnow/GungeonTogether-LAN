@@ -121,8 +121,7 @@ namespace GungeonTogether.Lan
             if (gm.SecondaryPlayer != null) {
                 if (CharacterCatalog.FromIdentity(gm.SecondaryPlayer.characterIdentity.ToString()) != character)
                     throw new IOException("The native second player differs from the LAN selection. Return to the foyer and reconnect.");
-                if (gm.PrimaryPlayer != null && gm.PrimaryPlayer.carriedConsumables != null)
-                    gm.SecondaryPlayer.carriedConsumables = gm.PrimaryPlayer.carriedConsumables;
+                RunEconomy.EnsureWallets();
                 return gm.SecondaryPlayer;
             }
             if (gm.PrimaryPlayer == null) throw new IOException("Choose a character in the foyer first.");

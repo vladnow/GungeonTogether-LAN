@@ -9,10 +9,12 @@ namespace GungeonTogether.Lan
     public sealed class SpriteReplication : IDisposable
     {
         private sealed class HostMaterial {
-            internal Shader Shader; internal Texture Texture; internal string Keywords = ""; internal float Refresh;
+            internal Material Source; internal Shader Shader; internal Texture Texture; internal string Keywords = ""; internal float Refresh;
             internal readonly Dictionary<int, int[]> Collections = new Dictionary<int, int[]>();
         }
         private readonly Dictionary<int, HostMaterial> hostMaterials = new Dictionary<int, HostMaterial>();
+        private readonly Dictionary<string, int> hostDefinitions = new Dictionary<string, int>();
+        private float nextMaterialPrune;
         private int nextHostCollection;
         private readonly Dictionary<int, CollectionInfo> definitions = new Dictionary<int, CollectionInfo>();
         private readonly Dictionary<int, SpriteCollectionDescriptor> descriptors = new Dictionary<int, SpriteCollectionDescriptor>();
@@ -34,7 +36,7 @@ namespace GungeonTogether.Lan
         private Projectile[] localProjectiles = new Projectile[0];
         private float nextActorRefresh, nextInvalidWarning;
         private bool seeded, suppressing, disposed;
-        private readonly SnapshotBuffer<WorldSnapshot> frames = new SnapshotBuffer<WorldSnapshot>(.04, true);
+        private readonly SnapshotBuffer<WorldSnapshot> frames = new SnapshotBuffer<WorldSnapshot>(.02, true);
         private readonly CameraOffsetFilter cameraAnchor = new CameraOffsetFilter();
         public readonly MovementPrediction Prediction = new MovementPrediction();
         public bool PredictionEnabled = true;
@@ -162,12 +164,13 @@ namespace GungeonTogether.Lan
                 int spriteId = sprite.spriteId;
                 if (sourceCollection == null || spriteId < 0) continue;
                 if (!GeometryUtility.TestPlanesAABB(view, renderer.bounds)) { CulledSprites++; continue; }
+                if (!PersonalLoot.VisibleTo(sprite, 1)) continue;
                 tk2dSpriteCollectionData actualCollection = sourceCollection.inst;
                 int materialMode = sprite.IsBraveOutlineSprite ? 1 : sprite.IsOutlineSprite ? 2 : 0;
                 Material sourceMaterial = renderer.sharedMaterial;
                 if (sourceMaterial == null || sourceMaterial.shader == null) continue;
                 HostMaterial identity;
-                if (!hostMaterials.TryGetValue(sourceMaterial.GetInstanceID(), out identity)) { identity = new HostMaterial(); hostMaterials.Add(sourceMaterial.GetInstanceID(), identity); }
+                if (!hostMaterials.TryGetValue(sourceMaterial.GetInstanceID(), out identity) || identity.Source != sourceMaterial) { identity = new HostMaterial { Source = sourceMaterial }; hostMaterials[sourceMaterial.GetInstanceID()] = identity; }
                 if (identity.Shader != sourceMaterial.shader || identity.Texture != sourceMaterial.mainTexture || Time.realtimeSinceStartup >= identity.Refresh) {
                     string keywords = string.Join(" ", sourceMaterial.shaderKeywords);
                     if (identity.Shader != sourceMaterial.shader || identity.Texture != sourceMaterial.mainTexture || identity.Keywords != keywords) identity.Collections.Clear();
@@ -177,9 +180,6 @@ namespace GungeonTogether.Lan
                 if (!identity.Collections.TryGetValue(actualCollection.GetInstanceID(), out ids)) { ids = new int[3]; identity.Collections.Add(actualCollection.GetInstanceID(), ids); }
                 int collectionId = ids[materialMode];
                 if (collectionId == 0) {
-                    collectionId = ++nextHostCollection;
-                    if (collectionId > 4096) throw new IOException("Too many sprite collections.");
-                    ids[materialMode] = collectionId;
                     string name = !string.IsNullOrEmpty(sourceCollection.spriteCollectionName) ? sourceCollection.spriteCollectionName : !string.IsNullOrEmpty(actualCollection.spriteCollectionName) ? actualCollection.spriteCollectionName : sourceCollection.name;
                     string guid = !string.IsNullOrEmpty(sourceCollection.spriteCollectionGUID) ? sourceCollection.spriteCollectionGUID : actualCollection.spriteCollectionGUID ?? "";
                     string asset = !string.IsNullOrEmpty(sourceCollection.assetName) ? sourceCollection.assetName : actualCollection.assetName ?? "";
@@ -190,7 +190,13 @@ namespace GungeonTogether.Lan
                     foreach (string property in MaterialParameter.Floats) if (sourceMaterial.HasProperty(property)) { float value = sourceMaterial.GetFloat(property); if (!float.IsNaN(value) && !float.IsInfinity(value)) info.Parameters.Add(new MaterialParameter { Name = property, X = Mathf.Clamp(value, -1000000, 1000000) }); }
                     Vector2 texScale = sourceMaterial.mainTextureScale, texOffset = sourceMaterial.mainTextureOffset;
                     info.Parameters.Add(new MaterialParameter { Name = "_MainTex_ST", Vector = true, X = texScale.x, Y = texScale.y, Z = texOffset.x, W = texOffset.y });
-                    send(info.Encode());
+                    string key = info.IdentityKey();
+                    if (!hostDefinitions.TryGetValue(key, out collectionId)) {
+                        collectionId = ++nextHostCollection;
+                        if (collectionId > 4096) throw new IOException("Too many distinct sprite definitions.");
+                        info.Id = collectionId; hostDefinitions.Add(key, collectionId); send(info.Encode());
+                    }
+                    ids[materialMode] = collectionId;
                 }
                 Transform t = sprite.transform; Vector3 pos = t.position; Vector3 scale = t.lossyScale;
                 bool guestPart = player != null && (t.IsChildOf(player.transform) || (player.CurrentGun != null && t.IsChildOf(player.CurrentGun.transform)));
@@ -204,6 +210,10 @@ namespace GungeonTogether.Lan
                     Height = sprite.HeightOffGround, Color = (uint)(color.r | color.g << 8 | color.b << 16 | color.a << 24), Flags = (byte)((sprite.FlipX ? 1 : 0) | (sprite.FlipY ? 2 : 0) | (sprite.ShouldDoTilt && sprite.IsPerpendicular ? 4 : 0) | (sprite.ShouldDoTilt ? 8 : 0)), Layer = (byte)sprite.gameObject.layer
                 };
                 if (guestPart) state.Flags |= 16;
+                if (materialMode == 1 && sourceMaterial.HasProperty("_AtlasData")) {
+                    Vector4 atlas = sourceMaterial.GetVector("_AtlasData");
+                    state.OutlineX = atlas.x; state.OutlineY = atlas.y; state.OutlineZ = atlas.z; state.OutlineW = atlas.w;
+                }
                 if (materialMode == 0 && renderer.sharedMaterial != null && renderer.sharedMaterial.HasProperty("_OverrideColor")) {
                     Color32 tint = renderer.sharedMaterial.GetColor("_OverrideColor"); state.OverrideColor = (uint)(tint.r | tint.g << 8 | tint.b << 16 | tint.a << 24);
                 }
@@ -216,6 +226,12 @@ namespace GungeonTogether.Lan
                 string numericError = state.NumericError();
                 if (numericError != null) { CulledSprites++; if (Time.realtimeSinceStartup >= nextInvalidWarning) { nextInvalidWarning = Time.realtimeSinceStartup + 5; Debug.LogWarning("GT_INVALID_VISUAL id=" + state.Id + " collection=" + sourceCollection.name + " object=" + sprite.name + " " + numericError); } continue; }
                 snapshot.Sprites.Add(state);
+            }
+            if (Time.realtimeSinceStartup >= nextMaterialPrune) {
+                nextMaterialPrune = Time.realtimeSinceStartup + 5;
+                List<int> expired = new List<int>();
+                foreach (KeyValuePair<int, HostMaterial> pair in hostMaterials) if (pair.Value.Source == null) expired.Add(pair.Key);
+                foreach (int id in expired) hostMaterials.Remove(id);
             }
             CapturedSprites = snapshot.Sprites.Count;
             LastCaptureMilliseconds = (System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
@@ -286,7 +302,7 @@ namespace GungeonTogether.Lan
         {
             if (frames.Push(snapshot, snapshot.Sequence, snapshot.SentAt, Time.realtimeSinceStartup)) LastSnapshot = snapshot;
         }
-        public void RecordInput(RemoteInput input, double now) { Prediction.Record(input, now); }
+        public void RecordInput(RemoteInput input, double now) { Prediction.Record(input, now, Time.unscaledDeltaTime); }
         public bool EnqueueMotion(PlayerMotion motion) { return Prediction.Observe(motion, Time.realtimeSinceStartup); }
 
         public void Render(double now)
@@ -344,6 +360,7 @@ namespace GungeonTogether.Lan
             }
             material.mainTexture = texture;
             sprite.usesOverrideMaterial = true; sprite.IsOutlineSprite = mode != 0; sprite.IsBraveOutlineSprite = mode == 1;
+            if (mode == 1 && material.HasProperty("_AtlasData")) material.SetVector("_AtlasData", new Vector4(state.OutlineX, state.OutlineY, state.OutlineZ, state.OutlineW));
             uint color = mode == 0 ? state.OverrideColor : state.Color;
             if (material.HasProperty("_OverrideColor")) material.SetColor("_OverrideColor", new Color32((byte)color, (byte)(color >> 8), (byte)(color >> 16), (byte)(color >> 24)));
             sprite.GetComponent<Renderer>().sharedMaterial = material;
@@ -389,6 +406,9 @@ namespace GungeonTogether.Lan
                     proxies[state.Id] = sprite;
                 }
                 sprite.automaticallyManagesDepth = false; sprite.IsZDepthDirty = false;
+                int materialMode = descriptors[state.CollectionId].MaterialMode;
+                bool outlineChanged = sprite.IsBraveOutlineSprite != (materialMode == 1) || sprite.IsOutlineSprite != (materialMode != 0);
+                sprite.IsBraveOutlineSprite = materialMode == 1; sprite.IsOutlineSprite = materialMode != 0;
                 if (sprite.Collection != collection || sprite.spriteId != state.SpriteId) sprite.SetSprite(collection, state.SpriteId);
                 ApplyMaterial(state, sprite, collection);
                 tk2dBaseSprite.PerpendicularState orientation = (state.Flags & 4) != 0 ? tk2dBaseSprite.PerpendicularState.PERPENDICULAR : tk2dBaseSprite.PerpendicularState.FLAT;
@@ -421,7 +441,7 @@ namespace GungeonTogether.Lan
                 sprite.FlipX = (state.Flags & 1) != 0; sprite.FlipY = (state.Flags & 2) != 0;
                 sprite.SortingOrder = state.SortingOrder; sprite.HeightOffGround = state.Height;
                 sprite.color = descriptors[state.CollectionId].MaterialMode == 0 ? (Color)new Color32((byte)state.Color, (byte)(state.Color >> 8), (byte)(state.Color >> 16), (byte)(state.Color >> 24)) : Color.white;
-                if (scaleChanged || orientationChanged) sprite.ForceBuild(); else sprite.ForceRotationRebuild();
+                if (scaleChanged || orientationChanged || outlineChanged) sprite.ForceBuild(); else sprite.ForceRotationRebuild();
                 Renderer proxyRenderer = sprite.GetComponent<Renderer>();
                 if (proxyRenderer != null) proxyRenderer.enabled = true;
             }
@@ -506,7 +526,7 @@ namespace GungeonTogether.Lan
             disposed = true; Camera.onPreCull -= BeforeCameraCull; NativeSpriteLifecycle.Unregister(this);
             foreach (tk2dBaseSprite sprite in proxies.Values) if (sprite != null) UnityEngine.Object.Destroy(sprite.gameObject);
             foreach (Material material in proxyMaterials.Values) if (material != null) UnityEngine.Object.Destroy(material);
-            proxyMaterials.Clear(); proxyDefinitions.Clear(); proxies.Clear(); definitions.Clear(); descriptors.Clear(); collections.Clear(); hostMaterials.Clear(); nextHostCollection = 0; collectionSignatures.Clear(); textures.Clear(); shaders.Clear();
+            proxyMaterials.Clear(); proxyDefinitions.Clear(); proxies.Clear(); definitions.Clear(); descriptors.Clear(); collections.Clear(); hostMaterials.Clear(); hostDefinitions.Clear(); nextHostCollection = 0; collectionSignatures.Clear(); textures.Clear(); shaders.Clear();
             frames.Clear(); nextSprites.Clear(); indexedFrame = null;
             Prediction.Clear(); cameraAnchor.Clear(); renderStates.Clear();
             hidden.Restore(); disabled.Restore();

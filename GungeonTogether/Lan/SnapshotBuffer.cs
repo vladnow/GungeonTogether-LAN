@@ -27,7 +27,7 @@ namespace GungeonTogether.Lan
                 if (adaptive) {
                     double interval = sentAt - last.Time;
                     jitter += (Math.Abs((receivedAt - lastArrival) - interval) - jitter) * .1;
-                    double target = Math.Max(.035, Math.Min(.09, interval * 1.1 + jitter * 2));
+                    double target = Math.Max(.018, Math.Min(.09, interval * 1.1 + jitter * 2));
                     delay += (target - delay) * (target > delay ? .35 : .05);
                 }
                 offset = Math.Min(offset, receivedAt - sentAt);
