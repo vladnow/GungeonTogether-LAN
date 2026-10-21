@@ -2,7 +2,7 @@ param([Parameter(Mandatory=$true)][string]$GamePath,[Parameter(Mandatory=$true)]
 $ErrorActionPreference = 'Stop'
 Add-Type -Path (Join-Path $BepInExCorePath 'Mono.Cecil.dll')
 $managed = Join-Path $GamePath 'EtG_Data\Managed'
-$runtime = Join-Path $PSScriptRoot 'bin\GungeonTogether.LAN-0.3.9-alpha.dll'
+$runtime = Join-Path $PSScriptRoot 'bin\GungeonTogether.LAN-0.4.0-alpha.dll'
 $resolver = New-Object Mono.Cecil.DefaultAssemblyResolver
 $resolver.AddSearchDirectory($managed)
 $resolver.AddSearchDirectory($BepInExCorePath)
@@ -12,13 +12,16 @@ $module = [Mono.Cecil.ModuleDefinition]::ReadModule($runtime,$parameters)
 $count = 0
 function Check-Type($type) {
  foreach ($attribute in $type.CustomAttributes | Where-Object { $_.AttributeType.FullName -eq 'HarmonyLib.HarmonyPatch' }) {
-  $target = $null; $name = $null; $signature = $null
+  $target = $null; $name = $null; $signature = $null; $kind = $null
   foreach ($argument in $attribute.ConstructorArguments) {
    if ($argument.Type.FullName -eq 'System.Type') { $target = $argument.Value }
    elseif ($argument.Type.FullName -eq 'System.String') { $name = $argument.Value }
+   elseif ($argument.Type.FullName -eq 'HarmonyLib.MethodType') { $kind = [int]$argument.Value }
    elseif ($argument.Type.FullName -eq 'System.Type[]') { $signature = @($argument.Value | ForEach-Object { $_.Value.FullName }) }
   }
   if ($null -eq $target -or !$name) { continue }
+  if ($kind -eq 1) { $name = "get_" + $name }
+  elseif ($kind -eq 2) { $name = "set_" + $name }
   $definition = $target.Resolve()
   $methods = @($definition.Methods | Where-Object Name -eq $name)
   if ($null -ne $signature) {

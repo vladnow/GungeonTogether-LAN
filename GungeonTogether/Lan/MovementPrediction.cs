@@ -23,10 +23,16 @@ namespace GungeonTogether.Lan
         public int PredictedFrames { get; private set; }
         public PlayerMotion Motion { get { return motion; } }
         public void Record(RemoteInput input, double now)
+        { Record(input, now, 0); }
+        public void Record(RemoteInput input, double now, double sampledFrame)
         {
             if (motion != null && input.Epoch != motion.Epoch) return;
             if (commands.Count > 0 && !Wire.Newer(input.Sequence, commands[commands.Count - 1].Sequence)) return;
-            commands.Add(new Command { Sequence = input.Sequence, Time = now, X = input.MoveX, Y = input.MoveY, Buttons = input.Buttons });
+            // The current input describes this render frame. Present its bounded
+            // walking step immediately instead of waiting for the next frame.
+            double time = now - Math.Max(0, Math.Min(.025, sampledFrame));
+            if (commands.Count > 0) time = Math.Max(time, commands[commands.Count - 1].Time);
+            commands.Add(new Command { Sequence = input.Sequence, Time = time, X = input.MoveX, Y = input.MoveY, Buttons = input.Buttons });
             while (commands.Count > 128) commands.RemoveAt(0);
             if ((input.Buttons & MotionActions) != 0) { blockedUntil = now + .20; commands.Clear(); }
         }

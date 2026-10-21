@@ -19,9 +19,17 @@ namespace GungeonTogether.Lan
         private uint inputSequence, snapshotSequence, lastSnapshot;
         private float deadline;
         private double nextInput, nextSnapshot, nextMotion;
+        private readonly AdaptiveSnapshotRate snapshotRate = new AdaptiveSnapshotRate();
+        public int SnapshotRateHz { get { return snapshotRate.Hertz; } }
         private uint motionSequence;
         private ulong previousButtons;
         public bool EnableMovementPrediction = true;
+        public RunRules Rules { get; private set; } = new RunRules();
+        public bool RulesReceived { get; private set; }
+        public void SetRules(RunRules rules) {
+            if (!IsHost || Phase != RunPhase.Lobby) throw new InvalidOperationException("Only the lobby host can change run rules.");
+            Rules = rules.Copy(); RulesReceived = true; Send(Rules.Encode());
+        }
         public double SmoothingMilliseconds { get { return sprites.SmoothingMilliseconds; } }
         private bool loadingCommand;
         private readonly InputAcknowledgements inputAcks = new InputAcknowledgements();
@@ -73,6 +81,7 @@ namespace GungeonTogether.Lan
             if (!GuestChoiceReceived) throw new IOException("Wait for the friend's character selection.");
             hostCharacter = CharacterCatalog.FromIdentity(gm.PrimaryPlayer.characterIdentity.ToString());
             controls = new RemoteControls();
+            Send(Rules.Encode());
             NativeWorld.EnsureGuest(GuestCharacter); controls.Bind(); controls.Enabled = false;
             generationContext = NativeWorld.ExportGenerationContext();
             epoch = 1; seed = UnityEngine.Random.Range(1, 999999999); scene = "tt_castle";
@@ -88,6 +97,7 @@ namespace GungeonTogether.Lan
             PlayerCamera.ResetEntry(); presentation.Reset(); Hud.Dispose(); Interface.Dispose(); SceneEffects.Dispose(); Equipment = null; Book = null;
             Audio.Dispose(); Audio = new AudioReplication();
             Phase = RunPhase.Generating; deadline = Time.realtimeSinceStartup + 120;
+            PersonalLoot.Reset(); if (IsHost) { RunEconomy.NewFloor(); RunEconomy.EnsureWallets(); }
             transport.InactivityTimeout = 120; inputAcks.Clear();
             Status = "Generating shared dungeon (epoch " + epoch + ")";
             if (controls != null) controls.Enabled = false;
@@ -125,17 +135,11 @@ namespace GungeonTogether.Lan
                 if (gm.IsFoyer) { Fail("The run returned to the foyer; reconnect before starting another run."); return; }
                 if (IsHost) {
                     NativeWorld.EnsureGuest(GuestCharacter); controls.Bind(); controls.Enabled = true;
+                    PersonalLoot.Tick();
                     Audio.Flush(epoch, transport);
                 } else {
                     Audio.Maintain();
                     sprites.SuppressLocalSimulation();
-                    if (NetworkTiming.Due(ref nextInput, Time.realtimeSinceStartup, 1.0 / 60)) {
-                        RemoteInput input = CaptureInput();
-                        inputAcks.Sent(input.Sequence, Time.realtimeSinceStartup);
-                        sprites.RecordInput(input, Time.realtimeSinceStartup);
-                        if (input.Buttons != previousButtons) Send(input.Encode()); else transport.SendLatest(input.Encode());
-                        previousButtons = input.Buttons;
-                    }
                 }
                 if (Time.realtimeSinceStartup >= nextNetworkLog) {
                     nextNetworkLog = Time.realtimeSinceStartup + 5;
@@ -147,8 +151,21 @@ namespace GungeonTogether.Lan
         public void LateUpdate()
         {
             if (!Mirroring || GameManager.Instance.IsLoadingLevel) return;
-            try { sprites.PredictionEnabled = EnableMovementPrediction && !MuteClientInput && !InventoryBook.BookOpen; sprites.Render(Time.realtimeSinceStartup); Hud.Update(Snapshot); Interface.Update(); }
+            try { sprites.PredictionEnabled = EnableMovementPrediction && !MuteClientInput && !InventoryBook.BookOpen && !NativeInterface.MapOpen; sprites.Render(Time.realtimeSinceStartup); Hud.Update(Snapshot); Interface.Update(); }
             catch (Exception ex) { log("GT_PRESENTATION_ERROR: " + ex); Fail(ex.Message); }
+        }
+        internal void SendClientInput()
+        {
+            if (!Mirroring || GameManager.Instance.IsLoadingLevel) return;
+            try {
+                RemoteInput input = CaptureInput();
+                bool changed = input.Buttons != previousButtons;
+                if (!NetworkTiming.Due(ref nextInput, Time.realtimeSinceStartup, 1.0 / 60) && !changed) return;
+                inputAcks.Sent(input.Sequence, Time.realtimeSinceStartup);
+                sprites.RecordInput(input, Time.realtimeSinceStartup);
+                if (changed) Send(input.Encode()); else transport.SendLatest(input.Encode());
+                previousButtons = input.Buttons; transport.FlushPending();
+            } catch (Exception ex) { Fail(ex.Message); }
         }
 
         // The acknowledgements describe input actually consumed by native player
@@ -163,10 +180,13 @@ namespace GungeonTogether.Lan
                     PlayerMotion motion = NativeMovement.Capture(epoch, ++motionSequence, controls);
                     if (motion != null) transport.SendLatest(motion.Encode());
                 }
-                if (NetworkTiming.Due(ref nextSnapshot, now, 1.0 / 30)) {
+                if (NetworkTiming.Due(ref nextSnapshot, now, 1.0 / snapshotRate.Hertz)) {
+                    long started = System.Diagnostics.Stopwatch.GetTimestamp();
                     WorldSnapshot value = sprites.Capture(epoch, ++snapshotSequence, Send, controls.ViewAspect);
                     value.InputSequence = controls.SimulatedInputSequence;
                     transport.SendLatest(value.Encode());
+                    double cost = (System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+                    snapshotRate.Observe(now, cost, transport.PendingBytes, transport.OldestPendingMilliseconds);
                 }
                 presentation.Capture(epoch, GuestCharacter, now, transport.SendLatest);
                 SceneEffects.Capture(epoch, now, transport.SendLatest);
@@ -184,6 +204,7 @@ namespace GungeonTogether.Lan
             BraveInput brave = BraveInput.GetInstanceForPlayer(0);
             if (brave == null || brave.ActiveActions == null) return input;
             GungeonActions a = brave.ActiveActions;
+            if (a.MapAction.IsPressed) return input;
             Vector2 move = Vector2.ClampMagnitude(a.Move.Vector, 1);
             Vector2 aim = a.Aim.Vector;
             if (brave.IsKeyboardAndMouse(false)) {
@@ -239,7 +260,7 @@ namespace GungeonTogether.Lan
             if (IsHost) {
                 if (type == DungeonMessage.Character) {
                     LobbyChoice choice = LobbyChoice.Decode(bytes);
-                    if (Phase == RunPhase.Lobby) { GuestCharacter = choice.Character; GuestChoiceReceived = true; log("GT_GUEST_CHARACTER " + CharacterCatalog.Prefab(GuestCharacter)); }
+                    if (Phase == RunPhase.Lobby) { GuestCharacter = choice.Character; GuestChoiceReceived = true; Send(Rules.Encode()); log("GT_GUEST_CHARACTER " + CharacterCatalog.Prefab(GuestCharacter)); }
                 } else if (type == DungeonMessage.Input) {
                     RemoteInput input = RemoteInput.Decode(bytes);
                     if (input.Epoch == epoch && Phase == RunPhase.Running) controls.Apply(input);
@@ -254,7 +275,13 @@ namespace GungeonTogether.Lan
                     }
                 } else throw new IOException("Client sent a host-only packet.");
             } else {
-                if (type == DungeonMessage.Level) BeginClientLevel(LevelCommand.Decode(bytes));
+                if (type == DungeonMessage.Rules) {
+                    if (Phase != RunPhase.Lobby) throw new IOException("Host changed run rules during a run.");
+                    Rules = RunRules.Decode(bytes); RulesReceived = true;
+                } else if (type == DungeonMessage.Level) {
+                    if (!RulesReceived) throw new IOException("Missing host run rules.");
+                    BeginClientLevel(LevelCommand.Decode(bytes));
+                }
                 else if (type == DungeonMessage.Collection) { CollectionInfo info = CollectionInfo.Decode(bytes); if (info.Epoch == epoch) sprites.Define(info); }
                 else if (type == DungeonMessage.Audio) { SoundBatch batch = SoundBatch.Decode(bytes); if (Mirroring) Audio.Receive(batch, epoch, Snapshot); }
                 else if (type == DungeonMessage.SceneEffects) { EffectsState state = EffectsState.Decode(bytes); if (Mirroring && state.Epoch == epoch) SceneEffects.Apply(state); }
@@ -322,6 +349,7 @@ namespace GungeonTogether.Lan
 
         public void Dispose()
         {
+            PersonalLoot.Reset(); RunEconomy.Reset();
             PlayerCamera.ResetEntry(); presentation.Reset(); Hud.Dispose(); Interface.Dispose(); SceneEffects.Dispose(); Equipment = null; Book = null;
             if (controls != null) { controls.Dispose(); controls = null; }
             sprites.Dispose();

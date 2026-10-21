@@ -137,6 +137,43 @@ namespace GungeonTogether.Lan
             private static bool Prefix() { return !Smoke; }
         }
 
+        [HarmonyPatch(typeof(InputManager), "UpdateInternal")]
+        private static class FreshNativeInput
+        {
+            private static void Prefix() { if (DungeonPlugin.Instance != null) DungeonPlugin.Instance.PollBeforeNativeInput(); }
+            private static void Postfix()
+            {
+                DungeonSession s = Session;
+                if (s != null) s.SendClientInput();
+            }
+        }
+        [HarmonyPatch(typeof(BraveInput), "CheckForActionInitialization")]
+        private static class InitializeRemoteActions
+        {
+            private static bool Prefix(BraveInput __instance)
+            {
+                DungeonSession session = Session;
+                if (session == null || !session.IsHost || session.Controls == null || !RemoteControls.IsPlayerTwo(__instance)) return true;
+                session.Controls.Bind(); return false;
+            }
+        }
+        [HarmonyPatch]
+        private static class PreserveRemoteBindings
+        {
+            private static IEnumerable<MethodBase> TargetMethods()
+            {
+                foreach (string name in new[] { "InitializeDefaults", "ReinitializeDefaults", "ReinitializeMenuDefaults", "InitializeSwappedTriggersPreset", "PostProcessAdditionalBlankControls" })
+                    yield return AccessTools.Method(typeof(GungeonActions), name);
+            }
+            private static bool Prefix(GungeonActions __instance)
+            { DungeonSession s = Session; return s == null || s.Controls == null || __instance != s.Controls.Actions; }
+        }
+        [HarmonyPatch(typeof(BraveInput), "TryLoadBindings")]
+        private static class PreserveRemoteSettings
+        {
+            private static bool Prefix(GungeonActions actions)
+            { DungeonSession s = Session; return s == null || s.Controls == null || actions != s.Controls.Actions; }
+        }
         [HarmonyPatch(typeof(BraveInput), "AssignActionsDevice")]
         private static class AssignDevice
         {

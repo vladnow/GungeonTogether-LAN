@@ -8,7 +8,7 @@ using GungeonTogether.Networking;
 
 namespace GungeonTogether.Lan
 {
-    [BepInPlugin("com.gungeontogether.lan", "Gungeon Together LAN Alpha", "0.3.9")]
+    [BepInPlugin("com.gungeontogether.lan", "Gungeon Together LAN Alpha", "0.4.0")]
     [BepInIncompatibility("com.llamerrr.gungeontogether")]
     public sealed partial class DungeonPlugin : BaseUnityPlugin
     {
@@ -25,6 +25,11 @@ namespace GungeonTogether.Lan
         private float nextPosition;
         private uint foyerSequence;
         private int guestChoice;
+        internal RunRules LobbyRules = new RunRules();
+        private string menuLanguage;
+        private bool pendingConnect, pendingHost;
+        private float pendingConnectDeadline;
+        public void OpenMenu() { visible = true; }
         private PlayerController menuPlayer;
         private string smokeRole;
         public bool IsSmoke { get { return smokeRole != null || profileCheck; } }
@@ -61,7 +66,7 @@ namespace GungeonTogether.Lan
                 if (arg == "--gt-dungeon-smoke-client") smokeRole = "client";
                 if (arg == "--gt-profile-check") profileCheck = true;
             }
-            visible = UsesSeparateProfile && !profileCheck;
+            visible = presentationProbe && UsesSeparateProfile && !profileCheck;
             if (UsesSeparateProfile && !IsSmoke) {
                 string lanSaves = Path.Combine(Paths.GameRootPath, "BepInEx/GungeonTogetherLAN/dungeon-profile");
                 try { ProfileDisplayPolicy.Initialize(Application.persistentDataPath, lanSaves, Log); }
@@ -79,12 +84,16 @@ namespace GungeonTogether.Lan
             if (smokeRole != null) {
                 Foyer.DoIntroSequence = false; Foyer.DoMainMenu = false; visible = false; smokeDeadline = Time.realtimeSinceStartup + 150;
             }
-            harmony = new Harmony("com.gungeontogether.lan.dungeon-0.3.9");
+            harmony = new Harmony("com.gungeontogether.lan.dungeon-0.4.0");
             try { harmony.PatchAll(typeof(DungeonPlugin).Assembly); }
             catch (Exception ex) {
                 if (IsSmoke) { Log("GT_DUNGEON_SMOKE_FAIL: patch initialization: " + ex); Application.Quit(); }
                 throw;
             }
+            menuLanguage = "en";
+            LobbyRules.SeparateMoney = Config.Bind("RunRules", "SeparateMoney", false, "Credit enemy money to the last attacking player; split boss money.").Value;
+            LobbyRules.SeparateKeys = Config.Bind("RunRules", "SeparateKeys", false, "Separate keys for each player.").Value;
+            LobbyRules.PersonalLoot = Config.Bind("RunRules", "PersonalLoot", false, "Separate ordinary chest openings and run shop purchases.").Value;
             ip = Config.Bind("LAN", "HostIP", "127.0.0.1", "Host's Radmin IPv4.").Value;
             bind = Config.Bind("LAN", "BindIP", "0.0.0.0", "Host's own Radmin IPv4 or all interfaces.").Value;
             port = Config.Bind("LAN", "Port", LanTransport.DefaultPort, "TCP port.").Value.ToString();
@@ -104,9 +113,9 @@ namespace GungeonTogether.Lan
             fingerprint = GameFingerprint();
             transport = new LanTransport(delegate { return Time.realtimeSinceStartup; });
             transport.PacketReceived += Receive;
-            transport.ConnectedEvent += delegate { ClearAvatar(); foyerSequence = 0; if (Session != null) Session.Dispose(); Session = new DungeonSession(transport, gameObject, Log); Session.EnableMovementPrediction = clientMovementPrediction; if (!transport.IsHost) Session.ChooseGuest(guestChoice); Log("GT_DUNGEON_CONNECTED"); };
+            transport.ConnectedEvent += delegate { ClearAvatar(); foyerSequence = 0; if (Session != null) Session.Dispose(); Session = new DungeonSession(transport, gameObject, Log); Session.EnableMovementPrediction = clientMovementPrediction; if (transport.IsHost) Session.SetRules(LobbyRules); if (!transport.IsHost) Session.ChooseGuest(guestChoice); Log("GT_DUNGEON_CONNECTED"); };
             transport.DisconnectedEvent += delegate { ClearAvatar(); if (Session != null) Session.Disconnected(transport.Status); Log(transport.Status); };
-            Log("GT_DUNGEON_READY 0.3.9; buffered rendering, character selection; game=" + fingerprint);
+            Log("GT_DUNGEON_READY 0.4.0; buffered rendering, character selection; game=" + fingerprint);
             Log("GT_PROFILE_MODE " + (UsesSeparateProfile ? "LAN" : "NORMAL"));
             RuntimeDisplayRestore.Attach(gameObject, Log);
         }
@@ -121,11 +130,21 @@ namespace GungeonTogether.Lan
             }
         }
 
+        internal void PollBeforeNativeInput()
+        {
+            if (transport != null && transport.Connected && Session != null && Session.IsHost && Session.Phase == DungeonSession.RunPhase.Running && !GameManager.Instance.IsLoadingLevel) transport.Poll();
+        }
         private void Update()
         {
             if (transport == null) return;
             if (Input.GetKeyDown(KeyCode.P) && (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl))) visible = !visible;
             if (visible && Input.GetKeyDown(KeyCode.Escape)) visible = false;
+            MainMenuEntry.Update();
+            if (pendingConnect) {
+                if (Time.realtimeSinceStartup > pendingConnectDeadline) { pendingConnect = false; error = "Foyer loading timed out."; }
+                else if (Foyer.DoMainMenu) LeaveTitle();
+                else if (GameManager.HasInstance && !GameManager.Instance.IsLoadingLevel && GameManager.Instance.IsFoyer && GameManager.Instance.PrimaryPlayer != null && !Foyer.DoMainMenu) { pendingConnect = false; Connect(pendingHost); visible = true; }
+            }
             UpdateMenuInput();
             transport.Poll();
             if (Session != null) { Session.MuteClientInput = visible; Session.Update(); }
@@ -173,20 +192,35 @@ namespace GungeonTogether.Lan
         private void Connect(bool host)
         {
             try {
-                if (!UsesSeparateProfile) throw new IOException("Start LAN using the updated GungeonTogether-LAN.exe; normal save profile is active.");
+                if (!UsesSeparateProfile) throw new IOException("Use Start Modded in a separate mod profile; normal saves are active.");
                 int value;
                 if (!int.TryParse(port, out value) || value < 1 || value > 65535) throw new IOException("Invalid TCP port.");
                 GameManager gm = UnityEngine.Object.FindObjectOfType<GameManager>();
+                if (gm != null && Foyer.DoMainMenu) {
+                    MainMenuFoyerController title = UnityEngine.Object.FindObjectOfType<MainMenuFoyerController>();
+                    if (title == null) throw new IOException("Wait for the title screen to finish loading.");
+                    pendingHost = host; pendingConnect = true; pendingConnectDeadline = Time.realtimeSinceStartup + 120; error = "Entering the Breach...";
+                    LeaveTitle(); return;
+                }
                 if (gm == null || !gm.IsFoyer || gm.PrimaryPlayer == null) throw new IOException("Choose a character in the foyer before connecting.");
                 if (host) transport.Host(bind.Trim(), value, code, fingerprint); else transport.Join(ip.Trim(), value, code, fingerprint);
                 error = "";
-            } catch (Exception ex) { error = ex.Message; }
+            } catch (Exception ex) { pendingConnect = false; error = ex.GetBaseException().Message; Log("GT_CONNECT_ERROR " + ex); }
+        }
+        private void LeaveTitle()
+        {
+            MainMenuFoyerController title = UnityEngine.Object.FindObjectOfType<MainMenuFoyerController>();
+            if (title == null) return;
+            // Follow PLAY, including revealing the title diorama before entering
+            // the Breach. Bypassing that reveal can leave the native foyer waiting.
+            AccessTools.Method(typeof(MainMenuFoyerController), "OnNewGameSelected").Invoke(title, new object[] { title.NewGameButton, null });
+            if (!Foyer.DoMainMenu) visible = false; // Leave native character selection usable.
         }
         private void ReturnToFoyer()
         {
             bool inRun = Session != null && Session.InRun;
             if (Session != null) { Session.Dispose(); Session = null; }
-            transport.Dispose(); ClearAvatar(); error = "";
+            pendingConnect = false; transport.Dispose(); ClearAvatar(); error = "";
             if (inRun && GameManager.HasInstance) GameManager.Instance.LoadCharacterSelect(false, true);
         }
         private void Log(string text)
